@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- ground-glass opacities and reticular opacities likely represents pulmonary edema
+- ground-glass opacities and reticular opacities likely represents pulmonary edema
+- mild cardiomegaly

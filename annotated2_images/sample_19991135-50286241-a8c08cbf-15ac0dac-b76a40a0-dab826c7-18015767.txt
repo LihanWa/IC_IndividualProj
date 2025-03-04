@@ -1,0 +1,7 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- loculated pleural fluid in the right hemithorax, at the apex
+- loculated pleural fluid in the right hemithorax, at the apex

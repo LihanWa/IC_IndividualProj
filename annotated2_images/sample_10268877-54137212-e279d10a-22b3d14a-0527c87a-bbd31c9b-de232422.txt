@@ -1,0 +1,9 @@
+Generated Sentences:
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- there is patchy bilateral lower lobe consolidation
+- there is patchy bilateral lower lobe consolidation
+- mild cardiomegaly

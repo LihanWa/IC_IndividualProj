@@ -1,0 +1,5 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- ground-glass opacities in the right lung base

@@ -1,0 +1,5 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- mild cardiomegaly is present

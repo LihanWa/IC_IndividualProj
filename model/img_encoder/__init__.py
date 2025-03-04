@@ -15,7 +15,7 @@ class ImageEncoderOutput(TensorDataclassMixin):
     pos_embeddings: Tensor
     # (N x d)
     global_features: Optional[Tensor] = None
-
+    output_img: Optional[Tensor] = None
     @property
     def device(self):
         return self.patch_features.device

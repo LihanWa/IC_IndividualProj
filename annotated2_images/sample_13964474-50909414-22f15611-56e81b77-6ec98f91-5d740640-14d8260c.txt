@@ -1,0 +1,7 @@
+Generated Sentences:
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- multilobar consolidation is present in the left upper lobe, left lower lobe, right upper lobe and right lower lobe
+- multilobar consolidation is present in the left upper lobe, left lower lobe, right upper lobe and right lower lobe

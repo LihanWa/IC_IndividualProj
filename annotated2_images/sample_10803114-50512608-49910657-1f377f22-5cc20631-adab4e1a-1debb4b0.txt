@@ -1,0 +1,7 @@
+Generated Sentences:
+- There is no pneumothorax or pleural effusion.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- Small right apical and basilar pneumothorax
+- Small right apical and basilar pneumothorax
