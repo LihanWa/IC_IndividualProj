@@ -16,7 +16,7 @@ from model.img_encoder import ImageEncoderOutput
 from model.txt_encoder import TextEncoderOutput
 
 from util.model_utils import prepare_config
-
+import ipdb
 log = logging.getLogger(__name__)
 
 
@@ -152,6 +152,7 @@ class SentenceTokenSupervisor(nn.Module):
 
         if self.config.use_sent_gen and generate:
             sent_outputs['generated_sentences'] = model.generate_sentences(sentence_region_features, sentence_mask)
+
 
         return loss, sub_losses, sent_outputs
     

@@ -308,58 +308,12 @@ def evaluate(config: EvaluationConfig):
         config_override=config.config_override,
     )
     train_experiment_config: ExperimentConfig = OmegaConf.create(checkpoint_dict['experiment_config']) #从checkpoint 获得的config
-    # with open('checkpoint.json','w') as f:
-    #     json.dump(checkpoint_dict,f,indent=4)
-    # print(f'checkpoint is loaded to checkpoint.json')
-    # ipdb.set_trace()
-    def smart_pprint(data, max_depth=2):
-        def recursive_pprint(d, depth=0):
-            if depth > max_depth:  # 超过最大递归深度只打印 keys
-                if isinstance(d, dict):
-                    pp.pprint({k: "..." for k in d.keys()})
-                # else:
-                #     pp.pprint(d)
-            else:
-                if isinstance(d, dict):
-                    for k, v in d.items():
-                        print(f"{'  ' * depth}{k}:")
-                        recursive_pprint(v, depth + 1)
-                # else:
-                #     pp.pprint(d)
-
-        # 初始化 pprint
-        pp = PrettyPrinter(indent=4)
-        # 调用递归打印
-        recursive_pprint(data)
-    # smart_pprint(checkpoint_dict,max_depth=0)
-    # pprint(checkpoint_dict)
     step = checkpoint_dict['step']
     log.info(f'Evaluating step {step}')
-    # ipdb.set_trace()
+
     
-    import torch.distributed as dist
-    import os
-    # dist.init_process_group("nccl") 
-    # rank = int(os.environ.get("LOCAL_RANK"))
-    # # if rank ==0:
-    # def broadcast_checkpoint(checkpoint_path, device, rank):
-    #     # 只有 rank 0 读取 checkpoint 文件
-    #     if rank == 0:
-    #         ckpt = torch.load(checkpoint_path, map_location=device)
-    #     else:
-    #         ckpt = None
-    #     # 将 checkpoint 放到一个列表中（broadcast_object_list 需要一个可序列化的 Python 对象列表）
-    #     ckpt_list = [ckpt]
-    #     # 从 rank 0 广播整个列表到所有进程
-    #     dist.broadcast_object_list(ckpt_list, src=0)
-    #     # 所有进程现在都有相同的 checkpoint 数据
-    #     return ckpt_list[0]
-    
-    # local_rank = int(os.environ["LOCAL_RANK"])  # 如果 torchrun 会自动设置 LOCAL_RANK
-    # device=torch.device("cuda",local_rank)
-    device=torch.device("cuda")
-    
-    model = model.to(device)
+
+    model = model.to(device=config.device)
     if train_experiment_config.compile:
         model = torch.compile(model, dynamic=True, mode='max-autotune')
     log.info(f'Using {config.device}')
@@ -368,36 +322,18 @@ def evaluate(config: EvaluationConfig):
     if not config.debug:
         plot_wandb = any(task.plot_wandb and task.plot_val_samples > 0 for task in config.eval_tasks.values())
         plot_wandb = plot_wandb and config.plot_wandb
-        # try:
-        #     wandb_run = get_wandb_run_from_model_name(
-        #         config.model_name,
-        #         run_name=config.run_name
-        #     )
-        #     assert wandb_run.state != 'running', 'Run is still running'
-        # except Exception as e:
-        #     log.error(f'Could not get wandb run: {e}\n'
-        #               'Evaluating without saving to wandb.')
-        #     wandb_run = None
-        # if not plot_wandb:
-        #     # try:
-        #     #     # 尝试从 W&B 获取运行
-        #     #     wandb_run = get_wandb_run_from_model_name(
-        #     #         config.model_name,
-        #     #         run_name=config.run_name
-        #     #     )
-        #     #     assert wandb_run.state != 'running', 'Run is still running'
-        #     # except Exception as e:
-        #     # 如果获取运行失败，记录日志并创建新的运行
-        #     log.error(f'Could not get wandb run: {e}\n'
-        #             'Creating a new wandb run instead.')
-        #     wandb_run = wandb.init(
-        #         project=config.model_name,  # 使用 model_name 作为项目名称
-        #         name=config.run_name,      # 使用 run_name 作为运行名称
-        #     )
+        try:
+            wandb_run = get_wandb_run_from_model_name(
+                config.model_name,
+                run_name=config.run_name
+            )
+            assert wandb_run.state != 'running', 'Run is still running'
+        except Exception as e:
+            log.error(f'Could not get wandb run: {e}\n'
+                      'Evaluating without saving to wandb.')
+            wandb_run = None
 
         if plot_wandb:
-            if wandb.run is not None:
-                wandb.finish()
             wandb.init(
                 project=WANDB_PROJECT,
                 entity=WANDB_ENTITY,
@@ -413,7 +349,7 @@ def evaluate(config: EvaluationConfig):
     train_experiment_config.num_workers = config.num_workers
     train_experiment_config.device = config.device
     train_experiment_config.debug = config.debug
-    train_experiment_config.batch_size=1 #修改
+
     
     # ipdb.set_trace()
     x=build_dataloaders_for_eval(train_experiment_config, eval_tasks=config.eval_tasks, eval_mode=config.eval_mode, load_val=config.optimize_inference)
@@ -433,9 +369,9 @@ def evaluate(config: EvaluationConfig):
             #task_config在validate用到 
             #与config的 task config比较，如果没变，说明更新了
         kwargs = {}
-        # if config.bootstrap:
-        #     kwargs['bootstrap'] = True
-        #     kwargs['n_bootstrap'] = config.n_bootstrap
+        if config.bootstrap:
+            kwargs['bootstrap'] = True
+            kwargs['n_bootstrap'] = config.n_bootstrap
         if not config.plot_wandb:
             task_config.plot_wandb = False
         eval_results = validate(model=model, val_task=task_config, val_dl=task_dl, 
@@ -478,7 +414,6 @@ def optimize_inference(model, val_task, val_dl, config, step):
                 with autocast(device_type=config.device, enabled=False):
                     predictions.append(evaluator.eval_step(**samples, step=step, data_config=val_data_conf, optimize_inference=True))
     best_eval_config = evaluator.optimize_inference(predictions)
-
     model.train()
     return best_eval_config
 

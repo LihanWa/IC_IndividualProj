@@ -9,9 +9,9 @@ def subsample_classes(cls_mask: Optional[torch.BoolTensor], expected_subssample_
     if not is_active:
         return torch.zeros_like(cls_mask)
 
-    num_classes = cls_mask.sum().float().clamp_min(1)
-    selection_prob = (expected_subssample_count / num_classes.float()).clamp(0, 1)
-    selection_mask = torch.rand_like(cls_mask, dtype=torch.float) < selection_prob
+    num_classes = cls_mask.sum().float().clamp_min(1) #去除false 75-》30
+    selection_prob = (expected_subssample_count / num_classes.float()).clamp(0, 1) # 10/30 =1/3
+    selection_mask = torch.rand_like(cls_mask, dtype=torch.float) < selection_prob # 《 1/3
 
     # (C)
     default_selection_mask = cls_mask & (cls_mask.cumsum(0) <= expected_subssample_count)

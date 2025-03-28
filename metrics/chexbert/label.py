@@ -84,7 +84,7 @@ def label(model, csv_path, return_probabilities=False):
     
     try:
         with torch.no_grad():
-            # ipdb.set_trace()
+            ipdb.set_trace()
             for i, data in enumerate((ld)):
                 
                 batch = data['imp']  # (batch_size, max_len)
@@ -116,6 +116,7 @@ def label(model, csv_path, return_probabilities=False):
                         attn_mask = attn_mask.to(batch.device)
                     
                     # 使用torch.no_grad确保不创建计算图
+                    # ipdb.set_trace()# 预测结果
                     out = model(batch, attn_mask)
                     
                 except RuntimeError as e:
@@ -127,12 +128,12 @@ def label(model, csv_path, return_probabilities=False):
 
                 if len(out) != 14:
                     print(f"警告：模型输出长度不正确，期望为14，实际为{len(out)}")
-                ipdb.set_trace()
                 for j in range(len(out)):
                     curr_y_pred = out[j].argmax(dim=1)  # shape is (batch_size)
                     curr_y_prob = nn.functional.softmax(out[j], dim=1)[:, 1]  # "positive" probability
                     y_pred[j].append(curr_y_pred.cpu())
                     y_prob[j].append(curr_y_prob.cpu())
+                # ipdb.set_trace()
                 
                 if device.type == 'cuda':
                     torch.cuda.empty_cache()

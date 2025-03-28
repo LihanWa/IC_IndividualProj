@@ -13,7 +13,7 @@ class UnlabeledDataset(Dataset):
                 """
                 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
                 self.impressions = bert_tokenizer.get_impressions_from_csv(csv_path)
-                ipdb.set_trace() 
+                # ipdb.set_trace() 
                 self.encoded_imp = bert_tokenizer.tokenize(self.impressions, tokenizer)
 
         def __len__(self):

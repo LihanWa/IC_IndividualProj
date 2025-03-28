@@ -125,7 +125,7 @@ def load_cxr14_dataset(mode: str, load_own_boxes: bool = False):
         )
     ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-    return df, files, load_pil_gray
+    return df, files, str
 
 
 def prepare_cxr14(path: str = CXR14_DIR):

@@ -9,7 +9,7 @@ from metrics.textgen_metrics import SentenceMetrics
 from util.data_utils import to_device
 
 from util.train_utils import AvgDictMeter
-
+import ipdb
 import logging
 log = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ class TrainingMetrics(nn.Module):
         self.step_metrics_meter.add(to_device(step_metrics, 'cpu'))
 
         if model_output.encoded_sentences is not None:
+            # ipdb.set_trace()
             sent_mask = to_device(model_output.encoded_sentences.sentence_mask, self.device)
             boxes = to_device(model_output.grounding.boxes, self.device)
             self.box_stats.update(boxes, mask=sent_mask)
@@ -74,9 +75,11 @@ class TrainingMetrics(nn.Module):
         
             self.count += N
             # (N)
-            self.mean_l2 += ((sent_mask * l2).sum(dim=1) / sent_mask.sum(dim=1)).sum()
-            self.mean_cos += ((sent_mask * cos).sum(dim=1) / sent_mask.sum(dim=1)).sum()
-            self.mean_rank += ((sent_mask * rank).sum(dim=1) / sent_mask.sum(dim=1)).sum()
+            den = sent_mask.sum(dim=1).clamp(min=1e-7)
+
+            self.mean_l2 += ((sent_mask * l2).sum(dim=1) / den).sum() #所有sample的累积和
+            self.mean_cos += ((sent_mask * cos).sum(dim=1) / den).sum()
+            self.mean_rank += ((sent_mask * rank).sum(dim=1) / den).sum()
             
             # box_iou
             # (N x S x S x 4)

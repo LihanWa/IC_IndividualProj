@@ -85,7 +85,7 @@ class PathologyDetectionEvaluator(Evaluator):
             return_class_metrics=True, return_class_stats=False,
             return_classification_metrics=False,
             obj_threshold=self.config.obj_threshold,
-            map_iou_thresholds=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+            map_iou_thresholds=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], #mean average precision;分别做AP，然后取平均
             ap_iou_thresholds=[0.1, 0.3, 0.5]))
 
     def _predict(self, 
@@ -125,14 +125,14 @@ class PathologyDetectionEvaluator(Evaluator):
         neg_prompt_emb = einops.repeat(self.neg_prompt_emb, 'c d -> n c r d', n=N, r=R)
 
         # (N x C) or (N x C x R)
-        if config.classify_by_prompts:
+        if config.classify_by_prompts: #特征分类
             region_cls_probs, region_cls_mask = classify_features(
                 region_features, pos_prompt_emb, neg_prompt_emb, 
                 normalized=config.normalize_classification, 
                 softmax=config.softmax_temperature is not None, temp=config.softmax_temperature if config.softmax_temperature is not None else 1.0)
             region_probs = region_probs * region_cls_probs
         
-        if config.box_scale_factors is not None:
+        if config.box_scale_factors is not None: #缩放边框，提高准确性
             # (C)
             scale_factors = torch.tensor([config.box_scale_factors[class_name] for class_name in self.class_names], device=device)
             region_boxes = region_boxes.clone()
@@ -241,52 +241,59 @@ class PathologyDetectionEvaluator(Evaluator):
         log.info(f'Best config: {best_config_overwrites}')     
         return base_config
 
-
     def plot(self, output: PathologyDetectionOutput, max_samples: int, target_dir: str, plot_local):
         pred_boxes = filter_obj_threshold(output.pred_boxes, self.config.obj_threshold) if self.config.obj_threshold is not None else output.pred_boxes
-        print(pred_boxes)
         wandb_boxes = prepare_wandb_bbox_images(
             images=output.image, 
             preds=pred_boxes, targets=output.target_cls_boxes, 
             class_names=self.class_names, one_box_per_class=False,
             max_samples=max_samples)
-        # return {'patho_boxes': wandb_boxes}
-        import ipdb
-        # ipdb.set_trace()
-        import os
+        return {'patho_boxes': wandb_boxes}
+    # def plot(self, output: PathologyDetectionOutput, max_samples: int, target_dir: str, plot_local):
+    #     pred_boxes = filter_obj_threshold(output.pred_boxes, self.config.obj_threshold) if self.config.obj_threshold is not None else output.pred_boxes
+    #     print(pred_boxes)
+    #     wandb_boxes = prepare_wandb_bbox_images(
+    #         images=output.image, 
+    #         preds=pred_boxes, targets=output.target_cls_boxes, 
+    #         class_names=self.class_names, one_box_per_class=False,
+    #         max_samples=max_samples)
+    #     # return {'patho_boxes': wandb_boxes}
+    #     import ipdb
+    #     # ipdb.set_trace()
+    #     import os
 
-        def save_wandb_boxes_to_local(wandb_boxes, save_dir="wandb_images"):
-            """
-            将 wandb_boxes 中的图像保存到本地文件夹。
+    #     def save_wandb_boxes_to_local(wandb_boxes, save_dir="wandb_images"):
+    #         """
+    #         将 wandb_boxes 中的图像保存到本地文件夹。
 
-            Args:
-                wandb_boxes (list): 包含 wandb.sdk.data_types.image.Image 的列表。
-                save_dir (str): 保存图像的本地目录。
-            """
-            # 创建保存目录
-            os.makedirs(save_dir, exist_ok=True)
+    #         Args:
+    #             wandb_boxes (list): 包含 wandb.sdk.data_types.image.Image 的列表。
+    #             save_dir (str): 保存图像的本地目录。
+    #         """
+    #         # 创建保存目录
+    #         os.makedirs(save_dir, exist_ok=True)
 
-            for i, wandb_image in enumerate(wandb_boxes):
-                if hasattr(wandb_image, 'image'):
-                    # 确保 wandb_image 有 image 属性
-                    save_path = os.path.join(save_dir, f"{target_dir}_wandb_image_{i}.png")
-                    wandb_image.image.save(save_path)
-                    print(f"Image {i} saved to {save_path}")
-                else:
-                    print(f"Skipped saving Image {i}: no 'image' attribute")
+    #         for i, wandb_image in enumerate(wandb_boxes):
+    #             if hasattr(wandb_image, 'image'):
+    #                 # 确保 wandb_image 有 image 属性
+    #                 save_path = os.path.join(save_dir, f"{target_dir}_wandb_image_{i}.png")
+    #                 wandb_image.image.save(save_path)
+    #                 print(f"Image {i} saved to {save_path}")
+    #             else:
+    #                 print(f"Skipped saving Image {i}: no 'image' attribute")
 
-        # 保存 wandb_boxes 图像到本地
-        wandb_boxes = prepare_wandb_bbox_images(
-            images=output.image, 
-            preds=pred_boxes, targets=output.target_cls_boxes, 
-            class_names=self.class_names, one_box_per_class=False,
-            max_samples=max_samples
-        )
+    #     # 保存 wandb_boxes 图像到本地
+    #     wandb_boxes = prepare_wandb_bbox_images(
+    #         images=output.image, 
+    #         preds=pred_boxes, targets=output.target_cls_boxes, 
+    #         class_names=self.class_names, one_box_per_class=False,
+    #         max_samples=max_samples
+    #     )
 
-        # 保存到指定目录
-        save_wandb_boxes_to_local(wandb_boxes, save_dir="output_wandb_boxes")
+    #     # 保存到指定目录
+    #     save_wandb_boxes_to_local(wandb_boxes, save_dir="output_wandb_boxes")
 
-        # 返回结果
-        result = {'patho_boxes': wandb_boxes}
+    #     # 返回结果
+    #     return {'patho_boxes': wandb_boxes}
 
             

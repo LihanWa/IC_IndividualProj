@@ -15,7 +15,7 @@ from model.detector.token_decoder_detector import TokenDetectorOutput
 from model.img_encoder import ImageEncoderOutput
 from model.supervisors.utils import subsample_classes
 from util.model_utils import prepare_config
-
+import ipdb
 log = logging.getLogger(__name__)
 
 
@@ -72,7 +72,7 @@ class PathologyTokenSupervisor(nn.Module):
                 target_cls_boxes_padded: Optional[torch.FloatTensor] = None,
                 target_cls_boxes_mask: Optional[torch.BoolTensor] = None,
                 has_class_labels: Optional[torch.BoolTensor] = None,
-                target_cls_labels: Optional[torch.FloatTensor] = None,
+                target_cls_labels: Optional[torch.FloatTensor] = None, #看起来就是bbox的label
                 **kwargs) -> torch.FloatTensor:
         """
         :param encoded_image
@@ -89,19 +89,29 @@ class PathologyTokenSupervisor(nn.Module):
 
         # ========== Select the relevant samples and classes to consider ==========
         # (C)
+        # ipdb.set_trace()
+        # (C) - C个类别的布尔掩码，表示哪些类别有边界框
         classes_with_boxes = subsample_classes(has_class_bboxes, self.config.subsample_patho_boxes, self.config.use_patho_detect, C=C, device=encoded_image.device)
         classes_with_labels = subsample_classes(has_class_labels, self.config.subsample_patho_cls, self.config.use_patho_cls, C=C, device=encoded_image.device)
-        relevant_classes = classes_with_labels | classes_with_boxes
-        # (N)
-        samples_with_boxes = (classes_with_boxes[None, :] & has_class_bboxes).any(1)
+        relevant_classes = classes_with_labels | classes_with_boxes #取相关类别
+        if patho_pos_prompt_emb[relevant_classes].shape[0]==0: ipdb.set_trace() 
+        # 检查classes_with_boxes和classes_with_labels是否相同
+        # if not torch.equal(has_class_bboxes, has_class_labels): #相同！！所以可以考虑删除
+        #     print(has_class_bboxes)
+        #     print(has_class_labels)
+        #     ipdb.set_trace()
+        #has cls b: NxCxbool
+        samples_with_boxes = (classes_with_boxes[None, :] & has_class_bboxes).any(1) #相当于unsqueeze 可以进行广播运算 [True,False] 选择样本,表示该样本有box
         samples_with_labels = (classes_with_labels[None, :] & has_class_labels).any(1)
-        relevant_samples = samples_with_labels | samples_with_boxes
+        # (N) - N个样本的布尔掩码，表示哪些样本是相关的(有标签或边界框)
+        relevant_samples = samples_with_labels | samples_with_boxes #维度不变，取并集 box label
         # (N')
         encoded_image = encoded_image[relevant_samples]
         # (C' x d)
         query_prompt_emb = patho_pos_prompt_emb[relevant_classes]
 
         # ========== Detect classes in the image (i.e. predict bounding boxes for class queries) ==========
+        #NQ4
         detected_regions: TokenDetectorOutput = \
             model.detect_prompts(
                 encoded_image,
@@ -113,21 +123,23 @@ class PathologyTokenSupervisor(nn.Module):
         sub_losses = {}
 
         # --- Loss: Pathology bounding box (patho-det) ---
-        if self.config.use_patho_detect:
-            classes_with_boxes_in_relevant = classes_with_boxes[relevant_classes]
+        if self.config.use_patho_detect and target_cls_boxes_padded.shape[2]!=0: 
+            classes_with_boxes_in_relevant = classes_with_boxes[relevant_classes] #缩小范围到relevant_classes
             samples_with_boxes_in_relevant = samples_with_boxes[relevant_samples]
             bbox_detected_regions = detected_regions[samples_with_boxes_in_relevant][:, classes_with_boxes_in_relevant]
-
+            #等价于 detected_regions[samples_with_boxes][:, classes_with_boxes] #如果 samples_with_labels 与 samples_with_boxes 相等
+            
             # note: target_cls_boxes_padded / target_cls_boxes_mask contain only boxes for classes that have boxes (original_classes_with_boxes)
             original_classes_with_boxes = has_class_bboxes.any(0)
-            target_cls_boxes_padded = target_cls_boxes_padded[samples_with_boxes][:, classes_with_boxes[original_classes_with_boxes]]
-            target_cls_boxes_mask = target_cls_boxes_mask[samples_with_boxes][:, classes_with_boxes[original_classes_with_boxes]]
+            # ipdb.set_trace()
+            target_cls_boxes_padded = target_cls_boxes_padded[samples_with_boxes][:, classes_with_boxes[original_classes_with_boxes] ]
+            target_cls_boxes_mask = target_cls_boxes_mask[samples_with_boxes][:, classes_with_boxes[original_classes_with_boxes] ]
 
             has_class_bboxes = has_class_bboxes[samples_with_boxes][:, classes_with_boxes]
             bbox_pos_prompt_emb = patho_pos_prompt_emb[classes_with_boxes]
             bbox_neg_prompt_emb = patho_neg_prompt_emb[classes_with_boxes]
 
-            cls_detect_loss, cls_detect_sub_losses = self.train_patho_detect(
+            cls_detect_loss, cls_detect_sub_losses = self.train_patho_detect( # target  与detected 样本数量可能不一样，目前先不做处理，看看之后有没有问题。
                 bbox_detected_regions, bbox_pos_prompt_emb, bbox_neg_prompt_emb,
                 target_cls_boxes_padded, target_cls_boxes_mask,
                 has_class_bboxes=has_class_bboxes)
@@ -170,7 +182,7 @@ class PathologyTokenSupervisor(nn.Module):
         # (N x C x R_s x 4)
         pred_boxes = detected_regions.multiboxes
         # (N x C x R_s)
-        pred_box_weights = detected_regions.multiboxes_weights
+        pred_box_weights = detected_regions.multiboxes_weights #multiregion_weight_mlp out=1
         # (N x C x R_s x d)
         pred_box_features = detected_regions.multiboxes_features
         N, C, R_s, _ = pred_boxes.shape
@@ -190,9 +202,9 @@ class PathologyTokenSupervisor(nn.Module):
         bbox_cost = bbox_l1_ccost(pred_boxes, target_cls_boxes_padded)
         giou_cost = bbox_giou_ccost(pred_boxes, target_cls_boxes_padded)
         # (N x C x R_s)
-        weights_cost = 1. - pred_box_weights
+        weights_cost = 1. - pred_box_weights #sc,m
         # (N x C x R_s)
-        cls_cost = 1. - cls_probs
+        cls_cost = 1. - cls_probs #pc,m
         # (N x C x R_s x R_t)
         cost = self.config.cost_coeff_bbox * bbox_cost + \
                 + self.config.cost_coeff_giou * giou_cost \

@@ -21,7 +21,7 @@ def bbox_l1_ccost(boxes1, boxes2):
     *batch_dims1, R_s, _ = boxes1.shape
     *batch_dims2, R_t, _ = boxes2.shape
     dims = prod(batch_dims1)    
-    assert batch_dims1 == batch_dims2
+    assert batch_dims1 == batch_dims2 # 所以样本和cls是对齐的
     # (... x R_s x 4)
     boxes1 = boxes1[..., :4].reshape(dims, R_s, 4)
     # (... x R_t x 4)

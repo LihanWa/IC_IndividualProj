@@ -419,7 +419,7 @@ class CEMetrics(nn.Module):
         pred_labels, target_labels = self._label(_get_chexbert())
         pred_labels_14, target_labels_14 = _convert_labels_nicolson_14(pred_labels), _convert_labels_nicolson_14(target_labels) #0，2，3 -》False 1 -》True
         pred_labels_5, target_labels_5 = _convert_labels_miura_5(pred_labels), _convert_labels_miura_5(target_labels) # 0，2 -》False 1，3 -》True
-
+        ipdb.set_trace() #comparison
         metrics = {}
         if self.micro:
             metrics.update(self._compute_micro_scores(pred_labels_5, target_labels_5, class_names=PATHOLOGIES_5))
@@ -498,8 +498,9 @@ class CEMetrics(nn.Module):
                 csv_writer.writerows([[ref_report] for ref_report in self.all_targets])
 
             # preds_*_reports are List[List[int]] with the labels extracted by CheXbert (see doc string for details)
-            preds_gen_reports: List[List[int]] = label(chexbert, pred_file)
+            preds_gen_reports: List[List[int]] = label(chexbert, pred_file) #label
             preds_ref_reports: List[List[int]] = label(chexbert, target_file)
+            ipdb.set_trace() #comparison
         preds_gen_reports = np.array(preds_gen_reports, dtype=np.int32).T
         preds_ref_reports = np.array(preds_ref_reports, dtype=np.int32).T
         # handle empty sentences (those are considered as no-finding)
@@ -562,18 +563,19 @@ def _convert_labels_nicolson_14(preds_reports: list[list[int]]):
 
     return preds_reports
 
-def _get_chexbert():
+def _get_chexbert(): 
     try:
         # 创建全新模型实例
         model = bert_labeler()
         
         # 加载权重到CPU，避免GPU内存问题
         checkpoint = torch.load(
-            os.path.expanduser("/vol/bitbucket/lw1824/chex/chex/models/third_party/chexbert.pth"), 
+            os.path.expanduser("/rds/general/user/lw1824/home/chex/chex/models/third_party/chexbert.pth"), 
             map_location='cpu'
         )
         
         # 检查状态字典格式
+        ipdb.set_trace()
         if 'model_state_dict' in checkpoint:
             state_dict = checkpoint['model_state_dict']
         else:
