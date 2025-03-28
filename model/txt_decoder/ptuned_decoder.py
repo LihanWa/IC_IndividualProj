@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 import einops
 from torch import nn
 import torch
-
+import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, PretrainedConfig,  GenerationMixin, GPT2TokenizerFast, GPT2LMHeadModel, GenerationConfig
 from model.components.mlp import MLP
 
@@ -33,7 +33,7 @@ class PTunedDecoderModel(BaseModel):
     def __init__(self, config: PTunedDecoderConfig, main_config: MainModelConfig):
         super().__init__(config)
         print("language_model_url\n :",self.config.language_model_url)
-        local_model_path = "/rds/general/user/lw1824/home/chex/chex/cache/hub/models--healx--gpt-2-pubmed-medium/"
+        local_model_path = os.path.join(os.environ.get('CHEX_DIR'),"chex/chex/cache/hub/models--healx--gpt-2-pubmed-medium/")
 
 # 下载模型和分词器
        

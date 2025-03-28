@@ -1,8 +1,8 @@
 import requests
 from PIL import Image
-
+import os
 # Read the image file
-image_path = "/rds/general/user/lw1824/home/chex/chex/dataset/MIMIC-CXR/mimic-cxr-jpg_2-0-0/files/p10/p10000032/s53189527/2a2277a9-b0ded155-c0de8eb9-c124d10e-82c5caab.jpg"
+image_path = os.path.join(os.environ.get('CHEX_DIR'),"chex/chex/dataset/MIMIC-CXR/mimic-cxr-jpg_2-0-0/files/p10/p10000032/s53189527/2a2277a9-b0ded155-c0de8eb9-c124d10e-82c5caab.jpg")
 image = Image.open(image_path)
 def download_sample_image() -> Image.Image:
     """Download chest X-ray with CC license."""

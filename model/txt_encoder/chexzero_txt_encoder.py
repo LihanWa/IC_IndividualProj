@@ -45,7 +45,7 @@ class ChexzeroTextEncoder(BaseModel):
 
         model, _ = chexzero.clip.load("ViT-B/32", device='cpu', jit=False) 
         # model.load_state_dict(torch.load(os.path.expanduser(self.config.model_path), map_location='cpu'))
-        model.load_state_dict(torch.load('/rds/general/user/lw1824/home/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
+        model.load_state_dict(torch.load(os.path.join(os.environ.get('CHEX_DIR'),'chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt'), map_location='cpu'))
         # model.load_state_dict(torch.load(self.config.model_path, map_location='cpu'))
         self.d = main_config.d_model
 

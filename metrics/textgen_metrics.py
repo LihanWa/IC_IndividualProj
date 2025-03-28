@@ -570,7 +570,7 @@ def _get_chexbert():
         
         # 加载权重到CPU，避免GPU内存问题
         checkpoint = torch.load(
-            os.path.expanduser("/rds/general/user/lw1824/home/chex/chex/models/third_party/chexbert.pth"), 
+            os.path.expanduser(os.path.join(os.environ.get('CHEX_DIR'),"chex/chex/models/third_party/chexbert.pth")), 
             map_location='cpu'
         )
         

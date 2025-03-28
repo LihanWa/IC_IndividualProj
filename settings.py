@@ -4,12 +4,13 @@ import os
 WANDB_PROJECT = os.environ.get('WANDBPROJECT', 'chex')
 WANDB_ENTITY = os.environ.get('WANDBENTITY')
 MODELS_DIR = os.environ.get('MODELS_DIR')
+CHEX_DIR = os.environ.get('CHEX_DIR')
 
-THIRD_PARTY_MODELS_DIR = os.environ.get('THIRD_PARTY_MODELS', "/rds/general/user/lw1824/home/chex/chex/models/third_party")
+THIRD_PARTY_MODELS_DIR = os.environ.get('THIRD_PARTY_MODELS', os.path.join(CHEX_DIR,"chex/chex/models/third_party"))
 SRC_DIR = os.path.dirname(os.path.realpath(__file__))
 PROJECT_DIR = os.path.dirname(SRC_DIR)
 
-DATA_DIR ='/rds/general/user/lw1824/home/chex/chex/dataset'
+DATA_DIR =os.path.join(CHEX_DIR,'chex/chex/dataset')
 MIMIC_CXR_BASE_DIR = os.environ.get('MIMIC_CXR_BASE_DIR', os.path.join(DATA_DIR, 'MIMIC-CXR')) 
 MIMIC_CXR_PROCESSED_DIR = os.environ.get('MIMIC_CXR_PROCESSED_DIR', os.path.join(MIMIC_CXR_BASE_DIR, 'mimic_cxr_processed'))
 MIMIC_CXR_JPG_DIR = os.environ.get('MIMIC_CXR_JPG_DIR', os.path.join(MIMIC_CXR_BASE_DIR, 'mimic-cxr-jpg_2-0-0'))

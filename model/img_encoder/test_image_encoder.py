@@ -46,7 +46,7 @@ class ChexzeroImageEncoder():
         # model.load_state_dict(torch.load('/rds/general/user/lw1824/home/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
         
         # 定义本地模型目录路径
-        local_repo_path = "/rds/general/user/lw1824/home/chex/chex/cache/rad-dino"
+        local_repo_path = os.path.join(os.environ.get('CHEX_DIR'),"chex/chex/cache/rad-dino")
 
         # 从本地路径加载模型
         model = AutoModel.from_pretrained(local_repo_path)
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     print('start')
     # 初始化配置
     config = ChexzeroImageEncoderConfig(
-        model_path="/rds/general/user/lw1824/home/chex/chex/cache/rad-dino",  # 替换为本地路径
+        model_path=os.path.join(os.environ.get('CHEX_DIR'),"chex/chex/cache/rad-dino"),  # 替换为本地路径
         frozen_backbone=True,
         use_pretrained_projection=True,
         additional_projection_layers=1,

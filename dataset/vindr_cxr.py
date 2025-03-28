@@ -65,7 +65,7 @@ def load_vindr_cxr_datafile(split: str, image_size, load_memmap: bool = True, lo
     return data_df, indices, load_fn, img_size_mode
 
 def prepare_vindr_cxr_datasets(val_ratio=0.5):
-    vindr_path = '/rds/general/user/lw1824/home/chex/chex/dataset/vindr-cxr/vindr-cxr/1.0.0/vindr-cxr-an-open-dataset-of-chest-x-rays-with-radiologists-annotations-1.0.0'
+    vindr_path = os.path.join(os.environ.get('CHEX_DIR'),'/chex/chex/dataset/vindr-cxr/vindr-cxr/1.0.0/vindr-cxr-an-open-dataset-of-chest-x-rays-with-radiologists-annotations-1.0.0')
     vindr_cxr_png_path = os.path.join(VINDR_CXR_PROCESSED_DIR, 'images_png')
 
     if os.path.exists(os.path.join(VINDR_CXR_PROCESSED_DIR, f'{VINDR_CXR_DATASET_NAME}.all.csv')):
@@ -267,7 +267,7 @@ def downsample_and_load_vindr_cxr_images(size_mode: int,sample_ids) -> Tuple[np.
         # assert row['sample_id'] == sample_id
 
 
-        mmap_file[i] = f"/rds/general/user/lw1824/home/chex/chex/dataset/vindr-cxr/processed/images_png/{row['image_id']}.png"
+        mmap_file[i] = os.path.join(os.environ.get('CHEX_DIR'),f"chex/chex/dataset/vindr-cxr/processed/images_png/{row['image_id']}.png")
 
     
     # pd.DataFrame(file_mapping, columns=['sample_id', 'index']).to_csv(downsampled_info_path)

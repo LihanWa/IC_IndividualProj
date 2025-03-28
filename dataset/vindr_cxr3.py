@@ -218,7 +218,7 @@ def downsample_and_load_vindr_cxr_images(size_mode: int) -> Tuple[np.ndarray, Di
     mmap_file = [None] * n_rows
     for i, image_id in tqdm(enumerate(image_ids)):
         file_mapping.append((image_id, i))
-        mmap_file[i] = f"/rds/general/user/lw1824/home/chex/chex/dataset/vindr-cxr/processed/images_png/{image_id}.png"
+        mmap_file[i] = os.path.join(os.environ.get('CHEX_DIR'),f"chex/chex/dataset/vindr-cxr/processed/images_png/{image_id}.png")
     pd.DataFrame(file_mapping, columns=['sample_id', 'index']).to_csv(downsampled_info_path)
 
     return mmap_file, {key: value for key, value in file_mapping}
