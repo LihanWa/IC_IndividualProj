@@ -96,7 +96,7 @@ def pathology_contrastive_loss(features: torch.FloatTensor, pos_prompt_emb: torc
     :param features: (N x C x d)
     :param pos_prompt_emb: (C x d)
     :param neg_prompt_emb: (C x d)
-    :param targets: (N x C)
+    :param targets: (N x C) # 针对图片而不是区域
     """
     assert features.ndim == 3 and pos_prompt_emb.ndim == 2 and neg_prompt_emb.ndim == 2 and targets.ndim == 2
 

@@ -1011,7 +1011,7 @@ def prepare_mimic_cxr_datasets(
     physionet_user: Optional[str]=None, 
     physionet_pw: Optional[str]=None,
     ):
-
+    # ipdb.set_trace()
     dataset_tags = dataset_name.split('-')
     assert dataset_tags[0] == 'mimic_cxr'
     dataset_tags = dataset_tags[1:]

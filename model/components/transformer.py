@@ -356,7 +356,7 @@ class TransformerTokenDecoder(nn.Module):
         if self.assign_decoder is None:
             return_intermediate_attentions = True
         if self.has_decoder:
-            token_features, intermediate_features, cross_attentions = self.decode(
+            token_features, intermediate_features, cross_attentions = self.decode( #att_weights
                 token_features, region_features, 
                 token_mask, region_mask, token_sa_mask,
                 token_embeddings, region_pos_embeddings,
@@ -426,7 +426,7 @@ class TransformerTokenDecoder(nn.Module):
             if return_cross_atts:
                 cross_atts.append(cross_att)
 
-        return token_features, intermediate_features, cross_atts
+        return token_features, intermediate_features, cross_atts #att_weights
 
     def encode_output(self, token_features, token_mask, token_embeddings):
         for encoder_layer in self.output_encoder_layers:

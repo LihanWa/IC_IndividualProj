@@ -161,7 +161,7 @@ class Evaluator:
 
     def _compute_metrics(self) -> dict:
         if len(self.metrics) == 1:
-            return list(self.metrics.values())[0].compute()
+            return list(self.metrics.values())[0].compute() #TrainingMetrics in training_metrics.py
         else:
             return {f'{metric_name}/{key}': value for metric_name, metric in self.metrics.items() for key, value in metric.compute().items()}
 
@@ -210,9 +210,14 @@ def build_train_dataloader(config: ExperimentConfig):
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         prefetch=config.prefetch)
+    # for a in train_dl:
+    #     print(a)
+        
+    # ipdb.set_trace()
     return train_dl
 
 def build_val_dataloader(config: ExperimentConfig, val_task: EvalConfig):
+    
     primary_train_dataset = list(config.train_dataset.values())[0]
     assert len(val_task.dataset) == 1, val_task.dataset
     val_dataset = list(val_task.dataset.values())[0]
@@ -321,6 +326,7 @@ def save_training_checkpoint(model: 'BaseModel', optimizer, lr_scheduler, scaler
     # Save the current model
     os.makedirs('checkpoints', exist_ok=True)
     checkpoint_path = os.path.join('checkpoints', f'checkpoint_{step:09d}.pth')
+    ipdb.set_trace()
     model.save_model(checkpoint_path, **saved_states)
     for component_name in saved_components:
         os.makedirs(os.path.join('checkpoints', component_name), exist_ok=True)

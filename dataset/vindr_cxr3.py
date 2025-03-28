@@ -11,14 +11,13 @@ import pandas as pd
 from pandas.core.groupby.generic import DataFrameGroupBy
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 from dataset.dataset_utils import load_from_memmap, split_and_save
 from ensemble_boxes import weighted_boxes_fusion
 import pydicom
 from skimage import exposure
 from tqdm import tqdm
 import albumentations as A
-import ipdb
+
 from settings import VINDR_CXR_DIR, VINDR_CXR_PROCESSED_DIR
 from util.data_utils import load_pil_gray
 tqdm.pandas()
@@ -38,19 +37,16 @@ def load_vindr_cxr_datafile(split: str, image_size, load_memmap: bool = True, lo
 
     log.info(f'Loading VinDr CXR dataset ({split}) - size {img_size_mode}...')
     prepare_vindr_cxr_datasets()
-    data_df = pd.read_csv(os.path.join(VINDR_CXR_PROCESSED_DIR, f'{VINDR_CXR_DATASET_NAME}.{split}.csv'))
-    data_df = data_df.copy()
-    data_df = data_df.rename(columns={'image_id': 'sample_id'})
-    sample_ids = data_df.sample_id.to_list()
-    # ipdb.set_trace()
     if load_memmap or load_in_memory:
-        mmap_file, file_mapping = downsample_and_load_vindr_cxr_images(img_size_mode,sample_ids)
+        mmap_file, file_mapping = downsample_and_load_vindr_cxr_images(img_size_mode)
         if load_in_memory:
             log.info('Loading images in memory...')
             mmap_file = np.array(mmap_file)
-
+    data_df = pd.read_csv(os.path.join(VINDR_CXR_PROCESSED_DIR, f'{VINDR_CXR_DATASET_NAME}.{split}.csv'))
+    data_df = data_df.copy()
+    data_df = data_df.rename(columns={'image_id': 'sample_id'})
     
-
+    sample_ids = data_df.sample_id.to_list()
     if load_memmap:
         log.info('Loading images from memmap...')
         indices = [file_mapping[sample_id] for sample_id in sample_ids]
@@ -65,15 +61,16 @@ def load_vindr_cxr_datafile(split: str, image_size, load_memmap: bool = True, lo
     return data_df, indices, load_fn, img_size_mode
 
 def prepare_vindr_cxr_datasets(val_ratio=0.5):
-    vindr_path = '/rds/general/user/lw1824/home/chex/chex/dataset/vindr-cxr/vindr-cxr/1.0.0/vindr-cxr-an-open-dataset-of-chest-x-rays-with-radiologists-annotations-1.0.0'
+
+    vindr_path = os.path.join(VINDR_CXR_DIR, 'vindr-cxr', '1.0.0')
     vindr_cxr_png_path = os.path.join(VINDR_CXR_PROCESSED_DIR, 'images_png')
 
     if os.path.exists(os.path.join(VINDR_CXR_PROCESSED_DIR, f'{VINDR_CXR_DATASET_NAME}.all.csv')):
         log.info(f'Dataset {VINDR_CXR_DATASET_NAME} found. Skipping preparation')
         return 
     
-    if not os.path.exists(vindr_cxr_png_path) or len(os.listdir(vindr_cxr_png_path)) == 0:
-        raise NotImplementedError(f"请先将DICOM图像转换为PNG格式并存储在 {vindr_cxr_png_path} 文件夹中")
+    if not os.path.exists(vindr_path) or len(os.listdir(vindr_path)) == 0:
+        raise NotImplementedError(f"Please download the VINDR-CXR dataset from Physionet first and store it in the folder {vindr_path}")
     
     log.info("Loading VinDr-CXR metadata...")
     # load train
@@ -122,57 +119,18 @@ def prepare_vindr_cxr_datasets(val_ratio=0.5):
     dataset = pd.concat([train_dataset, valtest_dataset], axis=0)
     dataset = dataset.rename(columns={cls_name: f'cls/vindrcxr/{cls_name}' for cls_name in cls_names_train})
 
-    # 获取PNG图像的尺寸信息
-    log.info("获取PNG图像尺寸信息...")
-    cnt=0
-
+    # process images, downsample + save to memmap
+    log.info("Converting DICOM images...")
+    os.makedirs(vindr_cxr_png_path, exist_ok=True)
     for img_id, row in tqdm(dataset.iterrows()):
-        cnt+=1
-        if cnt<12424: 
-            img_path = os.path.join(vindr_cxr_png_path, f'{img_id}.png')
-            if os.path.exists(img_path):
-                W, H = PIL.Image.open(img_path).size
-                dataset.loc[img_id, 'H'] = H
-                dataset.loc[img_id, 'W'] = W
-        else:
-            split = row['split']
-            split_dir = 'train' if split == 'train' else 'test'
-            H, W = convert_image(
-                os.path.join(vindr_path, split_dir, f'{img_id}.dicom'),
-                os.path.join(vindr_cxr_png_path, f'{img_id}.png')
-            )
-            dataset.loc[img_id, 'H'] = H
-            dataset.loc[img_id, 'W'] = W
-    # split_and_save(dataset, VINDR_CXR_PROCESSED_DIR, VINDR_CXR_DATASET_NAME)
+        img_path = os.path.join(vindr_cxr_png_path, f'{img_id}.png')
+        W, H = PIL.Image.open(img_path).size
+        dataset.loc[img_id, 'H'] = H
+        dataset.loc[img_id, 'W'] = W
+    split_and_save(dataset, VINDR_CXR_PROCESSED_DIR, VINDR_CXR_DATASET_NAME)
+            
 
-def convert_image(source_path, target_path):
-    if not os.path.exists(target_path):
-        assert os.path.exists(source_path), f"Source path {source_path} does not exist"
-        # load dicom
-        try:
-            dcm_data = pydicom.dcmread(source_path)
-        except Exception as e:
-            log.error(f"Failed to load dicom {source_path}")
-            raise e
-        img = dcm_data.pixel_array
-        if dcm_data.PhotometricInterpretation == "MONOCHROME1":
-            img = np.max(img) - img
-        if img.dtype != np.uint8:
-            img = ((img - np.min(img)) * 1.0 / (np.max(img) - np.min(img)) * 255).astype(np.uint8)
-                    
-        # histogram equalization
-        img = img.astype(float) / 255.
-        img = exposure.equalize_hist(img)
-        img = (255 * img).astype(np.uint8)
-        H, W = img.shape
 
-        # save to png
-        img = PIL.Image.fromarray(img).convert('L')
-        # img.save(target_path, format='PNG')
-    else:
-        W, H = PIL.Image.open(target_path).size
-
-    return H, W
 
 
 def concat_boxes(sample: pd.DataFrame) -> pd.Series:
@@ -237,42 +195,33 @@ def fuse_boxes(sample: pd.DataFrame) -> pd.Series:
 
 
 
-def downsample_and_load_vindr_cxr_images(size_mode: int,sample_ids) -> Tuple[np.ndarray, Dict[str, int]]:
+def downsample_and_load_vindr_cxr_images(size_mode: int) -> Tuple[np.ndarray, Dict[str, int]]:
     assert os.path.exists(VINDR_CXR_DIR)
     downsampled_path = os.path.join(VINDR_CXR_PROCESSED_DIR, f'downsampled_{size_mode}_frontal.memmap')
     downsampled_info_path = os.path.join(VINDR_CXR_PROCESSED_DIR, f'downsampled_{size_mode}_frontal_mapping.csv')
-    # if os.path.exists(downsampled_path):
-    #     log.info(f'Using downsampled data {downsampled_path}')
-    #     file_mapping = pd.read_csv(downsampled_info_path, usecols=['sample_id', 'index'], index_col='sample_id')
-    #     file_mapping: Dict[str, int] = file_mapping.to_dict(orient='dict')['index']
-    #     n_rows = len(file_mapping)
-    #     mmap_file = np.memmap(downsampled_path, mode='r', dtype='float32', shape=(n_rows, size_mode, size_mode))
-    #     return mmap_file, file_mapping
+    if os.path.exists(downsampled_path):
+        log.info(f'Using downsampled data {downsampled_path}')
+        file_mapping = pd.read_csv(downsampled_info_path, usecols=['sample_id', 'index'], index_col='sample_id')
+        file_mapping: Dict[str, int] = file_mapping.to_dict(orient='dict')['index']
+        n_rows = len(file_mapping)
+        mmap_file = np.memmap(downsampled_path, mode='r', dtype='float32', shape=(n_rows, size_mode, size_mode))
+        return mmap_file, file_mapping
 
     log.info(f'Downsampling images to {size_mode} (saving to {downsampled_path})...')
     vindr_cxr_png_path = os.path.join(VINDR_CXR_PROCESSED_DIR, 'images_png')
     metadata = pd.read_csv(os.path.join(VINDR_CXR_PROCESSED_DIR, f'{VINDR_CXR_DATASET_NAME}.all.csv'), usecols=['image_id'])
+    image_ids = metadata['image_id'].tolist()
 
-    file_mapping = pd.read_csv(downsampled_info_path, usecols=['sample_id', 'index'], index_col='sample_id')
-    file_mapping: Dict[str, int] = file_mapping.to_dict(orient='dict')['index']
-    # file_mapping = []
-    n_rows = len(file_mapping)
-    # mmap_file = np.memmap(downsampled_path, mode='w+', dtype='float32', shape=(n_rows, size_mode, size_mode))
-    mmap_file = [None]*n_rows 
-    import ipdb
-    # ipdb.set_trace()
-    for sample_id in tqdm(sample_ids, desc="Updating mmap"):
-        i = file_mapping[sample_id]
-        row=metadata.iloc[i]
-        # assert row['sample_id'] == sample_id
+    file_mapping = []
+    n_rows = len(image_ids)
+    pad_resize_transform = A.Compose([A.SmallestMaxSize(max_size=size_mode, interpolation=cv2.INTER_AREA), A.CenterCrop(height=size_mode, width=size_mode)])
+    mmap_file = [None] * n_rows
+    for i, image_id in tqdm(enumerate(image_ids)):
+        file_mapping.append((image_id, i))
+        mmap_file[i] = f"/rds/general/user/lw1824/home/chex/chex/dataset/vindr-cxr/processed/images_png/{image_id}.png"
+    pd.DataFrame(file_mapping, columns=['sample_id', 'index']).to_csv(downsampled_info_path)
 
-
-        mmap_file[i] = f"/rds/general/user/lw1824/home/chex/chex/dataset/vindr-cxr/processed/images_png/{row['image_id']}.png"
-
-    
-    # pd.DataFrame(file_mapping, columns=['sample_id', 'index']).to_csv(downsampled_info_path)
-
-    return mmap_file, file_mapping
+    return mmap_file, {key: value for key, value in file_mapping}
 
 
 # ================================= Main functions =================================
@@ -285,8 +234,5 @@ def run_prepare_vindr_cxr_dataset(val_ratio, size_mode):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger('PIL').setLevel(logging.WARNING)
-    logging.getLogger('PIL.PngImagePlugin').setLevel(logging.WARNING)
+    logging.basicConfig(level=logging.INFO)
     run_prepare_vindr_cxr_dataset()
-    # 禁用PIL的调试日志输出

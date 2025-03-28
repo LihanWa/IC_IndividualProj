@@ -83,7 +83,7 @@ class BoxExplainerEvaluator(Evaluator):
         target_cls_boxes: Optional[List[torch.FloatTensor]] = None, # dim: 5 [[0.567, 0.684, 0.610, 0.379, 1.000]],
         target_cls_box_sentences: Optional[List[List[str]]] = None, #非none，有一些句子
         **kwargs) -> BoxExplainerOutput: #**kwargs?
-
+        # ipdb.set_trace()
         # 1. Encode region features (using tokens or target anatomy boxes)
         assert target_cls_boxes is not None
         assert target_cls_box_sentences is not None
@@ -113,6 +113,7 @@ class BoxExplainerEvaluator(Evaluator):
         #output of postdecoder
         
         # 2. Generate sentences for regions
+        # ipdb.set_trace()
         if self.config.generate_sentences: #True
             predicted_box_sentences: List[List[str]] = self.model.generate_sentences(region_features, target_cls_boxe_mask, **self.config.sentence_generartion_kwargs)# {'max_length': 128, 'do_sample': False}
             predicted_box_sentences = [sent_i[:M_i] for sent_i, M_i in zip(predicted_box_sentences, M_is)]
@@ -144,7 +145,7 @@ class BoxExplainerEvaluator(Evaluator):
             pred_cls_preds = region_cls_preds[target_cls_boxe_mask]
             # (N_targets)
             target_classes = torch.cat([boxes_i[:, 4].long() for boxes_i in target_cls_boxes])
-
+            #cls_update
             self.classification_metrics.update(preds=pred_cls_preds, pred_probs=pred_cls_probs, targets=target_classes)
         else:
             region_cls_probs = None

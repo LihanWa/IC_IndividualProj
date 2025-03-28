@@ -40,7 +40,7 @@
 #         self.config: ChexzeroImageEncoderConfig
 
 #         model, _ = chexzero.clip.load("ViT-B/32", device='cpu', jit=False) 
-#         model.load_state_dict(torch.load('/vol/bitbucket/lw1824/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
+#         model.load_state_dict(torch.load('/rds/general/user/lw1824/home/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
 #         self.d = main_config.d_model
 #         print('%'*12)
 #         print(self.d)
@@ -209,18 +209,18 @@ class ChexzeroImageEncoder(BaseModel):
         self.config: ChexzeroImageEncoderConfig
 
         # model, _ = chexzero.clip.load("ViT-B/32", device='cpu', jit=False)
-        # model.load_state_dict(torch.load('/vol/bitbucket/lw1824/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
+        # model.load_state_dict(torch.load('/rds/general/user/lw1824/home/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
         
         # 定义本地模型目录路径
-        local_repo_path = "/vol/bitbucket/lw1824/chex/chex/cache/rad-dino"
-        # 从本地路径加载模型
-        # import torch
-        # import torch.distributed as dist
-        # import torch.multiprocessing as mp
-        # from torch.nn.parallel import DistributedDataParallel as DDP
-        # rank = int(os.environ["LOCAL_RANK"])
-        # # dist.init_process_group("nccl")
-        # torch.cuda.set_device(rank)
+        local_repo_path = "/rds/general/user/lw1824/home/chex/chex/cache/rad-dino"
+        #torch.distributed                        # 从本地路径加载模型
+                                # import torch
+                                # import torch.distributed as dist
+                                # import torch.multiprocessing as mp
+                                # from torch.nn.parallel import DistributedDataParallel as DDP
+                                # rank = int(os.environ["LOCAL_RANK"])
+                                # # dist.init_process_group("nccl")
+                                # torch.cuda.set_device(rank)
         
         model = AutoModel.from_pretrained(local_repo_path)
         # model = model.to(rank)
@@ -234,11 +234,11 @@ class ChexzeroImageEncoder(BaseModel):
         # self.backbone: VisualTransformer = model.visual
         # d_backbone = self.backbone.output_dim if self.config.use_pretrained_projection else self.backbone.proj.shape[0]
         # self.n_layers = len(self.backbone.transformer.resblocks) + 2
-        # if config.frozen_backbone:
+        if config.frozen_backbone:
         # ipdb.set_trace()
-        for param in self.backbone.parameters():
-            param.requires_grad = False
-        log.info('Freezing backbone for the whole training')
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+            log.info('Freezing backbone for the whole training')
             # self.n_frozen_layers = self.n_layers
             # self.n_currently_frozen_layers = self.n_layers
         # elif config.freeze_backbone_layers is not None and config.freeze_backbone_layers != 0:
@@ -250,14 +250,14 @@ class ChexzeroImageEncoder(BaseModel):
         #     self.n_currently_frozen_layers = config.freeze_backbone_layers
         #     log.info(f'Freezing {self.n_frozen_layers}/{self.n_layers} layers of backbone for the whole training')
 
-        # self.patch_projection = MLP(
-        #     # self.config.additional_projection_layers,
-        #     0, 
-        #     d_in=d_backbone, 
-        #     d_out=self.d, 
-        #     use_bn=self.config.projection_bn,
-        #     act=main_config.act,
-        #     dropout=main_config.dropout)
+        self.patch_projection = MLP(
+            # self.config.additional_projection_layers,
+            4, 
+            d_in=d_backbone, 
+            d_out=self.d, 
+            use_bn=self.config.projection_bn,
+            act=main_config.act,
+            dropout=main_config.dropout)
 
     def freeze_layers(self, n_frozen_layers: int):
         # first layer (embedding layer)
@@ -309,6 +309,7 @@ class ChexzeroImageEncoder(BaseModel):
         with torch.set_grad_enabled(False):
             H=W=int(x.shape[2]/14)
             N=int(x.shape[0])
+            # ipdb.set_trace()
 
             x = self.backbone.embeddings.patch_embeddings(x)  # shape = [N, 768, H/14, W/14]
             x=x.reshape(N,768,-1)
@@ -327,7 +328,6 @@ class ChexzeroImageEncoder(BaseModel):
                 x = layer(x)[0] #tuple (x,)
 
 
-
             # Extract features
             cls_features = self.backbone.layernorm(x[:, 0, :])
             if self.config.add_cls_features:
@@ -344,13 +344,13 @@ class ChexzeroImageEncoder(BaseModel):
             pos_embeddings = einops.repeat(pos_embeddings, '(h w) d -> n h w d', h=H, w=W, n=N)
             
         # (N x H x W x d)
-        # projected_patch_features = self.patch_projection(patch_features)
-        # cls_features = self.patch_projection(cls_features.unsqueeze(1)).squeeze(1)
-        # pos_embeddings = self.patch_projection(pos_embeddings)
+        projected_patch_features = self.patch_projection(patch_features)
+        cls_features = self.patch_projection(cls_features.unsqueeze(1)).squeeze(1)
+        pos_embeddings = self.patch_projection(pos_embeddings)
 
-        projected_patch_features=patch_features[:,:,:,100:612]
-        cls_features=cls_features[:,100:612]
-        pos_embeddings=pos_embeddings[:,:,:,100:612]
+        # projected_patch_features=patch_features[:,:,:,100:612]
+        # cls_features=cls_features[:,100:612]
+        # pos_embeddings=pos_embeddings[:,:,:,100:612]
         # if self.config.additional_projection_layers > 0:
         #     pos_embeddings = self.patch_projection(pos_embeddings)
 
@@ -369,7 +369,7 @@ if __name__ == "__main__":
     print('start')
     # 初始化配置
     config = ChexzeroImageEncoderConfig(
-        model_path="/vol/bitbucket/lw1824/chex/chex/cache/rad-dino",  # 替换为本地路径
+        model_path="/rds/general/user/lw1824/home/chex/chex/cache/rad-dino",  # 替换为本地路径
         frozen_backbone=True,
         use_pretrained_projection=True,
         additional_projection_layers=1,

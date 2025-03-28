@@ -17,8 +17,14 @@ class ChexzeroTextEncoderConfig(BaseModelConfig):
     # model_path: str = os.path.expanduser("~/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt")
     model_path: str = os.path.join(os.environ.get('MODELS_DIR'),"best_64_5e-05_original_22000_0.864.pt")
 
-    frozen_language_model: bool = True
-
+    frozen_language_model: bool = False
+    frozen_token_embedding: bool = True
+    frozen_positional_embedding: bool = True
+    frozen_transformer: bool = True
+    freeze_layers: int = 8
+    frozen_ln_final: bool = True
+    frozen_text_projection: bool = False
+    frozen_projection: bool = False
     # Additional projection layers (after the language model projection)
     # 0 = no projection, 1 = linear, 2 = one hidden layer
     n_projection_layers: int = 0
@@ -39,7 +45,7 @@ class ChexzeroTextEncoder(BaseModel):
 
         model, _ = chexzero.clip.load("ViT-B/32", device='cpu', jit=False) 
         # model.load_state_dict(torch.load(os.path.expanduser(self.config.model_path), map_location='cpu'))
-        model.load_state_dict(torch.load('/vol/bitbucket/lw1824/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
+        model.load_state_dict(torch.load('/rds/general/user/lw1824/home/chex/chex/models/third_party/chexzero/CheXzero_Models/best_64_5e-05_original_22000_0.864.pt', map_location='cpu'))
         # model.load_state_dict(torch.load(self.config.model_path, map_location='cpu'))
         self.d = main_config.d_model
 
@@ -52,6 +58,39 @@ class ChexzeroTextEncoder(BaseModel):
         if self.config.frozen_language_model:
             for param in self.parameters():
                 param.requires_grad = False
+        else:
+            # 冻结token embedding（一般建议冻结）
+            if self.config.frozen_token_embedding:
+                for param in self.token_embedding.parameters():
+                    param.requires_grad = False
+
+            # 位置编码一般建议冻结
+            if self.config.frozen_positional_embedding:
+                self.positional_embedding.requires_grad = False
+            else:
+                self.positional_embedding.requires_grad = True
+
+            # Transformer层选择性冻结
+            if self.config.frozen_transformer:
+                freeze_layers = self.config.freeze_layers  # 比如冻结前8层
+                for idx, block in enumerate(self.transformer.resblocks):
+                    requires_grad = idx >= freeze_layers  # 后面几层解冻
+                    for param in block.parameters():
+                        param.requires_grad = requires_grad
+
+            # 最终LayerNorm（一般冻结）
+            if self.config.frozen_ln_final:
+                for param in self.ln_final.parameters():
+                    param.requires_grad = False
+
+            # text_projection（看具体情况，一般解冻）
+            if self.config.frozen_text_projection:
+                self.text_projection.requires_grad = False
+
+            # projection模块（一般需要微调，不冻结）
+            if self.config.frozen_projection:
+                for param in self.projection.parameters():
+                    param.requires_grad = False
 
         d_backbone = self.text_projection.shape[1]
         

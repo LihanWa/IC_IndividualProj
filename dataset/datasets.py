@@ -33,6 +33,7 @@ from util.data_utils import load_pil_gray
 
 log = logging.getLogger(__name__)
     
+    
 
 @dataclass
 class DatasetConfig:
@@ -73,18 +74,17 @@ class ImageWithSupervisionDataset(Dataset):
                  mode: str,
                  image_size,
                  transform: Callable,
-                 prefetch: bool = False) -> None:
+                 prefetch: bool = False,
+                 random_seed: Optional[int] = None) -> None:
         super().__init__()
-
-        self.dataset_info = config
+        random_seed=42
+        self.dataset_info = config #dataset_info
         self.dataset_name = config.name
         self.transform = transform
         # --- Load the dataset metadata ---
+
         if config.name.startswith('mimic_cxr-'):
-            #data_df 是什么
             data_df, self.load_indices, self.load_fn, loaded_size = load_mimic_cxr_datafile(config.name, mode, image_size=image_size, load_memmap=config.load_memmap)
-            # ipdb.set_trace()
-            # ipdb.set_trace()
         elif config.name == VINDR_CXR_DATASET_NAME:
             data_df, self.load_indices, self.load_fn, loaded_size = load_vindr_cxr_datafile(mode, image_size=image_size, load_memmap=config.load_memmap)
         elif config.name == 'nih_cxr':
@@ -92,7 +92,25 @@ class ImageWithSupervisionDataset(Dataset):
             loaded_size = None
         else:
             raise ValueError(f'Unknwon dataset {config.name}. Config: {config}')
+        
+        # 获取所有样本ID
         self.sample_ids = data_df.sample_id.to_list()
+        
+        # 如果设置了limit_samples，随机选择子集
+
+        if config.limit_samples is None:
+            limit = len(self.sample_ids) // 5
+        else:
+            limit = min(len(self.sample_ids), config.limit_samples)
+            
+        if random_seed is not None:
+            # 设置随机种子以确保可重复性
+            random.seed(random_seed)
+        # 随机选择样本
+        indices = random.sample(range(len(self.sample_ids)), limit)
+        self.sample_ids = [self.sample_ids[i] for i in indices]
+        # 更新data_df以仅包含选定的样本
+        data_df = data_df.iloc[indices].reset_index(drop=True)
         
         # images may have already been preprocessed (resized/cropped/padded) but the bboxes are still in the original image coordinates
         # -> we need to compute the crops and rescales to later transform the bboxes to the loaded image coordinates
@@ -119,8 +137,10 @@ class ImageWithSupervisionDataset(Dataset):
             self.anatomy_class_labels: np.ndarray = load_anatomy_class_labels(data_df, config, column_prefix='anatcls')
 
         if config.has_anatomy_bboxes:
+            # ipdb.set_trace()
             # (N x A x 4), (N x A); box format: "(x_c, y_c, w, h)" in relative coordinates [0, 1]
             self.anatomy_bboxes, self.anatomy_present_masks = load_anatomy_bboxes(data_df, config, crops=crops, rescales=rescales, column_prefix='anatbbox')
+            # ipdb.set_trace()
             # (N x A_multi x M x 4), (N x A_multi x M); box format: "(x_c, y_c, w, h)" in relative coordinates [0, 1]
             self.anatomy_multiboxes, self.anatomy_multibox_masks = load_anatomy_multiboxes(self.anatomy_bboxes, self.anatomy_present_masks, config)
 
@@ -142,13 +162,10 @@ class ImageWithSupervisionDataset(Dataset):
 
     def __len__(self) -> int:
         assert len(self.sample_ids) > 0, f'No samples found for dataset {self.dataset_name}'
-        if self.dataset_info.limit_samples is not None:
-            return min(len(self.sample_ids), self.dataset_info.limit_samples)
-        else:
-            return len(self.sample_ids)
+        return len(self.sample_ids)
 
     def __getitem__(self, index) -> dict:
-        # ipdb.set_trace()
+
         sample = {
             'sample_id': str(self.sample_ids[index]),
         }
@@ -163,14 +180,14 @@ class ImageWithSupervisionDataset(Dataset):
             img = None
             #self.load_indices【index】: mimic_cxr_meta's #row  e.g. [0:1000,1:1200,]     [file_mapping[sample_id] for sample_id in sample_ids]        file_mapping:sample_id: mimic_cxr_meta's #row
             # ipdb.set_trace()
-            if isinstance(img, Image.Image):
-                img = np.array(img, dtype=np.float32) / 255.
+            # if isinstance(img, Image.Image):
+            #     img = np.array(img, dtype=np.float32) / 255.
             # --- transform image (and bboxes) ---
             if self.dataset_info.has_anatomy_bboxes:
                 assert not self.dataset_info.has_class_bboxes
                 anatomy_boxes = self.anatomy_bboxes[index]  # # (A x 4) of type np.float32 in format (xc, yc, w, h, class_id)
                 anatomy_present_masks = self.anatomy_present_masks[index] # (A) of type np.bool
-                img, anatomy_boxes, anatomy_present_masks = self._transform_with_anat_boxes(img, anatomy_boxes, anatomy_present_masks)
+                img_path, anatomy_boxes, anatomy_present_masks = self._transform_with_anat_boxes(img_path, anatomy_boxes, anatomy_present_masks)
                 sample['target_anat_present_masks'] = anatomy_present_masks
                 sample['target_anat_boxes'] = anatomy_boxes
                 if self.anatomy_multiboxes is not None:
@@ -182,17 +199,20 @@ class ImageWithSupervisionDataset(Dataset):
                 # imgbox
                 # ipdb.set_trace()
                 # img, class_boxes = self._transform_with_class_boxes(img, class_boxes)
-                img, class_boxes = self._transform_with_class_boxes(img_path, class_boxes)
+
+                img_path, class_boxes = self._transform_with_class_boxes(img_path, class_boxes)
+                
                 sample['target_cls_boxes'] = class_boxes
                 sample['has_class_bboxes'] = self.has_class_bboxes
             else:
-                img = self._transform(img)
-            sample['x'] = img  #图片在这里
+                img_path = self._transform(img_path)
+            sample['x'] = img_path  #图片在这里
             # ipdb.set_trace()
             if self.dataset_info.has_class_labels:
-                sample['target_cls_labels'] = self.class_labels[index]
+                sample['target_cls_labels'] = self.class_labels[index] #C
             if self.dataset_info.has_anatomy_class_labels:
                 sample['target_anat_cls_labels'] = self.anatomy_class_labels[index]
+                # ipdb.set_trace() #target_anat_cls_labelss 是否全0
             if self.dataset_info.has_sentences:
                 sample['sentences'] = self.sentences[index]
             if self.dataset_info.has_anatomy_sentences:
@@ -210,19 +230,23 @@ class ImageWithSupervisionDataset(Dataset):
     def _transform(self, img):
         return self.transform(image=img, bboxes=[], labels=[])['image']
 
-    def _transform_with_anat_boxes(self, img, anat_bboxes, anat_present_masks):
-        A = anat_bboxes.shape[0]
+    def _transform_with_anat_boxes(self, img_path, anat_bboxes, anat_present_masks):
+        #box:(29, 4) anat_present_masks: 29 all True
+        # ipdb.set_trace()
+        img = Image.open(img_path)
+        A = anat_bboxes.shape[0] 
         box_label_mapping = np.arange(A, dtype=np.int64)
         # (n_present_anat_boxes) of type np.int64
-        present_labels = box_label_mapping[anat_present_masks]
+        present_labels = box_label_mapping[anat_present_masks] # 0-28
+        
         # (n_present_anat_boxes x 4) of type np.float32 in format (xc, yc, w, h)
         present_bboxes = anat_bboxes[anat_present_masks, :]
 
-        transformed = self.transform(image=img, bboxes=present_bboxes, labels=present_labels)
-        img = transformed['image']
+        transformed_class_bboxes = ImageWithSupervisionDataset.transform_boxes(present_bboxes, img.size)
 
-        present_labels = np.array(transformed['labels']).astype(np.int64)
-        present_bboxes = np.array(transformed['bboxes'])
+
+
+        present_bboxes = np.array(transformed_class_bboxes)#(29, 4) all boxes
         anat_present_masks = np.zeros_like(anat_present_masks)
         anat_bboxes = np.zeros_like(anat_bboxes)
         
@@ -231,26 +255,26 @@ class ImageWithSupervisionDataset(Dataset):
             #assert anat_present_masks.sum() > 0, f'No anatomy boxes remaining'
             anat_bboxes[present_labels, :] = present_bboxes
 
-        return img, anat_bboxes, anat_present_masks
-    
+        return img_path, anat_bboxes, anat_present_masks#(29, all True
+
     import numpy as np
     import matplotlib.pyplot as plt
     import matplotlib.patches as patches
 
-    def calculate_resize_scale(original_size, target_size=518):
-        # 获取原始宽高
-        orig_w, orig_h = original_size
-        # 计算最短边的缩放比例
-        scale = target_size / min(orig_w, orig_h)
-        return scale
+    # def calculate_resize_scale(original_size, target_size=518):
+    #     # 获取原始宽高
+    #     orig_w, orig_h = original_size
+    #     # 计算最短边的缩放比例
+    #     scale = target_size / min(orig_w, orig_h)
+    #     return scale
 
-    # 应用缩放
-    def calculate_crop_offset(resized_size, crop_size=518):
-        resized_w, resized_h = resized_size
-        # 计算裁剪的偏移量
-        offset_x = max(0, (resized_w - crop_size) // 2)
-        offset_y = max(0, (resized_h - crop_size) // 2)
-        return offset_x, offset_y
+    # # 应用缩放
+    # def calculate_crop_offset(resized_size, crop_size=518):
+    #     resized_w, resized_h = resized_size
+    #     # 计算裁剪的偏移量
+    #     offset_x = max(0, (resized_w - crop_size) // 2)
+    #     offset_y = max(0, (resized_h - crop_size) // 2)
+    #     return offset_x, offset_y
 
     @staticmethod
     def transform_box(original_box, original_image_size, target_size=518):
@@ -396,6 +420,211 @@ class ImageWithSupervisionDataset(Dataset):
     #     class_bboxes = np.concatenate([class_bboxes, bbox_labels[:, None]], axis=1) if M > 0 else np.zeros((0, 5), dtype=np.float32)
 
     #     return img, class_bboxes
+@dataclass
+class MultiDatasetInfo:
+    names: List[str] = MISSING
+    name: str = MISSING
+
+    # --- Subset Configs ---
+    subset_infos: List[DatasetConfig] = MISSING
+    subset_anatomy_ranges: List[Optional[Tuple[int, int]]] = MISSING
+    subset_multianatomy_ranges: List[Optional[Tuple[int, int]]] = MISSING
+    subset_class_ranges: List[Optional[Tuple[int, int]]] = MISSING
+
+    # --- Combined ---
+    class_names: Optional[List[str]] = None
+    anatomy_names: Optional[List[str]] = None
+    multi_anatomy_names: Optional[List[str]] = None
+
+    has_sentences: bool = False
+    has_class_labels: bool = False
+    has_anatomy_class_labels: bool = False
+    has_class_bboxes: bool = False
+    has_class_box_sentences: bool = False
+    has_anatomy_bboxes: bool = False
+    has_anatomy_sentences: bool = False
+
+
+class MultiDataset(Dataset):
+    def __init__(self, datasets: List[ImageWithSupervisionDataset]) -> None:
+        super().__init__()
+        self.datasets = datasets
+        oversampling_factors = [dataset.dataset_info.oversampling_factor for dataset in datasets]
+        auto_balance = [dataset.dataset_info.auto_balance for dataset in datasets]
+        dataset_sizes = [len(dataset) for dataset in datasets]
+        if any(auto_balance):
+            max_size = max(dataset_sizes)
+            auto_oversampling_factors = [max_size / size for size in dataset_sizes]
+            auto_oversampling_factors = [factor if automatic else 1 for factor, automatic in zip(auto_oversampling_factors, auto_balance)]
+            oversampling_factors = [auto_factor * manual_factor for auto_factor, manual_factor in zip(auto_oversampling_factors, oversampling_factors)]
+        oversampling_factors = [int(round(factor)) for factor in oversampling_factors]
+        self.oversampling_factors = oversampling_factors
+        self.effective_dataset_sizes = [oversampling_factor * dataset_size for oversampling_factor, dataset_size in zip(oversampling_factors, dataset_sizes)]
+        self.dataset_sizes = dataset_sizes
+        self.size = sum(self.effective_dataset_sizes)
+
+        self.dataset_indices = [i_dataset for i_dataset, len_dataset in zip(range(len(datasets)), self.effective_dataset_sizes) for _ in range(len_dataset)]
+        self.dataset_starts = np.cumsum([0] + self.effective_dataset_sizes[:-1])
+        
+        self.dataset_info = MultiDatasetInfo(
+            names=[dataset.dataset_info.name for dataset in datasets], 
+            name='+'.join([dataset.dataset_info.name for dataset in datasets]),
+            subset_infos=[dataset.dataset_info for dataset in datasets])
+        self.dataset_info.subset_anatomy_ranges = [None for _ in datasets]
+        self.dataset_info.subset_multianatomy_ranges = [None for _ in datasets]
+        self.dataset_info.subset_class_ranges = [None for _ in datasets]
+        a_index = 0
+        a_multi_index = 0
+        c_index = 0
+        m_multibox_list = [dataset.anatomy_multiboxes.shape[2] for dataset in datasets if dataset.dataset_info.has_anatomy_bboxes and dataset.anatomy_multiboxes is not None]
+        self.m_multibox = max(m_multibox_list) if len(m_multibox_list) > 0 else 0
+        for i_dataset, subset_info in enumerate(self.dataset_info.subset_infos):
+            if subset_info.class_names is not None and len(subset_info.class_names) > 0:
+                assert self.dataset_info.class_names is None or all(cls_name not in self.dataset_info.class_names for cls_name in subset_info.class_names)
+                self.dataset_info.class_names = subset_info.class_names if self.dataset_info.class_names is None else self.dataset_info.class_names + subset_info.class_names
+                self.dataset_info.subset_class_ranges[i_dataset] = (c_index, c_index + len(subset_info.class_names))
+                c_index += len(subset_info.class_names)
+            if subset_info.anatomy_names is not None:
+                assert self.dataset_info.anatomy_names is None or all(anat_name not in self.dataset_info.anatomy_names for anat_name in subset_info.anatomy_names)
+                self.dataset_info.anatomy_names = subset_info.anatomy_names if self.dataset_info.anatomy_names is None else self.dataset_info.anatomy_names + subset_info.anatomy_names
+                self.dataset_info.subset_anatomy_ranges[i_dataset] = (a_index, a_index + len(subset_info.anatomy_names))
+                a_index += len(subset_info.anatomy_names)
+            if subset_info.multi_anatomy_names is not None:
+                assert self.dataset_info.multi_anatomy_names is None or all(anat_name not in self.dataset_info.multi_anatomy_names for anat_name in subset_info.multi_anatomy_names)
+                self.dataset_info.multi_anatomy_names = subset_info.multi_anatomy_names if self.dataset_info.multi_anatomy_names is None else self.dataset_info.multi_anatomy_names + subset_info.multi_anatomy_names
+                self.dataset_info.subset_multianatomy_ranges[i_dataset] = (a_multi_index, a_multi_index + len(subset_info.multi_anatomy_names))
+                a_multi_index += len(subset_info.multi_anatomy_names)
+
+            self.dataset_info.has_sentences |= subset_info.has_sentences
+            self.dataset_info.has_class_labels |= subset_info.has_class_labels
+            self.dataset_info.has_anatomy_class_labels |= subset_info.has_anatomy_class_labels
+            # ipdb.set_trace()# 看看has维度
+            self.dataset_info.has_class_bboxes |= subset_info.has_class_bboxes
+            self.dataset_info.has_class_box_sentences |= subset_info.has_class_box_sentences
+            self.dataset_info.has_anatomy_bboxes |= subset_info.has_anatomy_bboxes
+            self.dataset_info.has_anatomy_sentences |= subset_info.has_anatomy_sentences
+        
+    def __len__(self) -> int:
+        return self.size
+    
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        i_dataset = self.dataset_indices[index]
+        index_in_dataset = index - self.dataset_starts[i_dataset]
+        dataset_size = self.dataset_sizes[i_dataset]
+        index_in_dataset = index_in_dataset % dataset_size
+
+        sample = self.datasets[i_dataset][index_in_dataset]
+        sample['dataset_index'] = i_dataset
+        sample['dataset_name'] = self.dataset_info.names[i_dataset]
+
+        return self._fill_empty_targets(sample, i_dataset)
+    
+    def _fill_empty_targets(self, sample, i_dataset):
+        subset_info = self.dataset_info.subset_infos[i_dataset]
+        # C/A: number of classes/anatomy of the whole dataset (not just the subset)
+        A = len(self.dataset_info.anatomy_names) if self.dataset_info.anatomy_names is not None else 0
+        A_multi = len(self.dataset_info.multi_anatomy_names) if self.dataset_info.multi_anatomy_names is not None else 0
+        M_multi = self.m_multibox
+        C = len(self.dataset_info.class_names) if self.dataset_info.class_names is not None else 0
+
+        if self.dataset_info.has_anatomy_bboxes:
+            has_anatomy_bboxes = np.zeros((A,), dtype=np.bool8)
+            target_anat_present_masks = np.zeros((A,), dtype=np.bool8)
+            target_anat_boxes = np.zeros((A, 4), dtype=np.float32)
+            if subset_info.has_anatomy_bboxes:
+                a_start, a_end = self.dataset_info.subset_anatomy_ranges[i_dataset]
+                has_anatomy_bboxes[a_start:a_end] = True
+                target_anat_present_masks[a_start:a_end] = sample['target_anat_present_masks']
+                target_anat_boxes[a_start:a_end] = sample['target_anat_boxes']
+            sample['has_anatomy_bboxes'] = has_anatomy_bboxes
+            sample['target_anat_present_masks'] = target_anat_present_masks
+            sample['target_anat_boxes'] = target_anat_boxes
+
+            if self.dataset_info.multi_anatomy_names is not None and len(self.dataset_info.multi_anatomy_names) > 0:
+                has_anatomy_multiboxes = np.zeros((A_multi,), dtype=np.bool8)
+                target_anat_multiboxes = np.zeros((A_multi, M_multi, 4), dtype=np.float32)
+                target_anat_multibox_masks = np.zeros((A_multi, M_multi), dtype=np.bool8)
+                if subset_info.has_anatomy_bboxes and subset_info.multi_anatomy_names is not None and len(subset_info.multi_anatomy_names) > 0:
+                    am_start, am_end = self.dataset_info.subset_multianatomy_ranges[i_dataset]
+                    target_anat_multiboxes[am_start:am_end] = sample['target_anat_multiboxes']
+                    target_anat_multibox_masks[am_start:am_end] = sample['target_anat_multiboxes_masks']
+                    has_anatomy_multiboxes[am_start:am_end] = True
+                sample['target_anat_multiboxes'] = target_anat_multiboxes
+                sample['target_anat_multiboxes_masks'] = target_anat_multibox_masks
+                sample['has_anatomy_multiboxes'] = has_anatomy_multiboxes
+
+        if self.dataset_info.has_class_bboxes:
+            has_class_bboxes = np.zeros((C,), dtype=np.bool8)
+            if subset_info.has_class_bboxes:
+                c_start, c_end = self.dataset_info.subset_class_ranges[i_dataset]
+                has_class_bboxes[c_start:c_end] = sample['has_class_bboxes'] # True
+                target_cls_boxes = sample['target_cls_boxes']
+                target_cls_boxes[:, 4] = target_cls_boxes[:, 4] + c_start
+            else:
+                target_cls_boxes = np.zeros((0, 5), dtype=np.float32)
+            sample['has_class_bboxes'] = has_class_bboxes
+            sample['target_cls_boxes'] = target_cls_boxes
+
+        if self.dataset_info.has_class_labels:
+            has_class_labels = np.zeros((C,), dtype=np.bool8)
+            target_cls_labels = np.zeros((C,), dtype=np.int64)
+            if subset_info.has_class_labels:
+                c_start, c_end = self.dataset_info.subset_class_ranges[i_dataset]
+                has_class_labels[c_start:c_end] = True
+                target_cls_labels[c_start:c_end] = sample['target_cls_labels']
+            sample['has_class_labels'] = has_class_labels
+            sample['target_cls_labels'] = target_cls_labels
+
+        if self.dataset_info.has_anatomy_class_labels:
+            has_anatomy_class_labels = np.zeros((A, C), dtype=np.bool8)
+            target_anat_cls_labels = np.zeros((A, C), dtype=np.int64)
+            if subset_info.has_anatomy_class_labels:
+                a_start, a_end = self.dataset_info.subset_anatomy_ranges[i_dataset]
+                c_start, c_end = self.dataset_info.subset_class_ranges[i_dataset]
+                has_anatomy_class_labels[a_start:a_end, c_start:c_end] = True
+                target_anat_cls_labels[a_start:a_end, c_start:c_end] = sample['target_anat_cls_labels']
+            sample['has_anatomy_class_labels'] = has_anatomy_class_labels
+            sample['target_anat_cls_labels'] = target_anat_cls_labels
+
+        if self.dataset_info.has_sentences:
+            if subset_info.has_sentences:
+                has_sentences = np.array(True, dtype=np.bool8)
+                target_sentences = sample['sentences']
+            else:
+                has_sentences = np.array(False, dtype=np.bool8)
+                target_sentences = None
+            sample['has_sentences'] = has_sentences
+            sample['sentences'] = target_sentences
+
+        if self.dataset_info.has_anatomy_sentences:
+            has_anatomy_sentences = np.zeros((A,), dtype=np.bool8)
+            target_anat_sentences = [[] for _ in range(A)]
+            if subset_info.has_anatomy_sentences:
+                a_start, a_end = self.dataset_info.subset_anatomy_ranges[i_dataset]
+                has_anatomy_sentences[a_start:a_end] = True
+                target_anat_sentences[a_start:a_end] = sample['target_anat_sentences']
+            sample['has_anatomy_sentences'] = has_anatomy_sentences
+            sample['target_anat_sentences'] = target_anat_sentences
+        
+        if self.dataset_info.has_class_box_sentences:
+            has_class_box_sentences = np.zeros((C,), dtype=np.bool8)
+            if subset_info.has_class_box_sentences:
+                c_start, c_end = self.dataset_info.subset_class_ranges[i_dataset]
+                has_class_box_sentences[c_start:c_end] = True
+                target_cls_box_sentences = sample['target_cls_box_sentences']
+                target_sentence_boxes = sample['target_sentence_boxes']
+                grounded_sentences = sample['grounded_sentences']
+            else:
+                target_cls_box_sentences = []
+                target_sentence_boxes = []
+                grounded_sentences = []
+            sample['has_class_box_sentences'] = has_class_box_sentences
+            sample['target_cls_box_sentences'] = target_cls_box_sentences
+            sample['target_sentence_boxes'] = target_sentence_boxes
+            sample['grounded_sentences'] = grounded_sentences
+
+        return sample
+        
 
 def build_dataloader(configs: List[DatasetConfig],
                      mode: str, 
@@ -422,6 +651,8 @@ def build_dataloader(configs: List[DatasetConfig],
                     pixel_mean=pixel_mean, pixel_std=pixel_std)
 
     assert len(configs) > 0
+
+    # ipdb.set_trace() #查看configs
     if len(configs) == 1:
         # ipdb.set_trace()
         dataset = ImageWithSupervisionDataset(
@@ -439,7 +670,7 @@ def build_dataloader(configs: List[DatasetConfig],
                         prefetch=prefetch, 
                         transform=transform) 
                     for conf in configs])
-    dataset_info = dataset.dataset_info
+    dataset_info = dataset.dataset_info #config
     # ipdb.set_trace()
     # Get one iter of train_ds and val_ds for debugging
     # print('dataset',dataset)
@@ -463,10 +694,11 @@ def build_dataloader(configs: List[DatasetConfig],
         if dataset_info.has_class_bboxes: #RE
             collated_batch['target_cls_boxes'] = [torch.tensor(sample.pop('target_cls_boxes')) for sample in batch]
         
-        collated_batch.update(default_collate(batch))
+        collated_batch.update(default_collate(batch)) #这里设置了has_class_bboxes等
 
         if dataset_info.has_class_bboxes:
-            class_ids_with_boxes, boxes, box_masks = convert_bbox_list_to_padded_tensor(collated_batch['target_cls_boxes'], C=len(dataset_info.class_names), has_class_bboxes=collated_batch.get('has_class_bboxes'))
+            # ipdb.set_trace()
+            class_ids_with_boxes, boxes, box_masks = convert_bbox_list_to_padded_tensor(collated_batch['x'],collated_batch['target_cls_boxes'], C=len(dataset_info.class_names), has_class_bboxes=collated_batch.get('has_class_bboxes'))
             collated_batch['class_ids_with_boxes'] = class_ids_with_boxes
             collated_batch['target_cls_boxes_padded'] = boxes
             collated_batch['target_cls_boxes_mask'] = box_masks
@@ -482,14 +714,16 @@ def build_dataloader(configs: List[DatasetConfig],
     #g.manual_seed(0)
 
     # Create dataloader
+    # ipdb.set_trace()
     return DataLoader(dataset,
                     #   batch_size,修改
-                    4,
+                    32,
                     
                       shuffle=is_train,
                       drop_last=is_train,
                       pin_memory=True,
                       num_workers=num_workers,
+                    #   num_workers=0,
                       prefetch_factor=3,
                       collate_fn=collate_fn,
                       #worker_init_fn=seed_worker,
@@ -546,7 +780,7 @@ def load_anatomy_sentences(data_df, config: DatasetConfig, column_prefix: str) -
     assert config.anatomy_names is not None and len(config.anatomy_names) > 0
     n_samples = len(data_df)
     all_anatomy_sentences: List[List[List[str]]] = [[] for _ in range(n_samples)]
-    for a, anatomy_name in enumerate(config.anatomy_names):
+    for a, anatomy_name in enumerate(config.anatomy_names): #29 right lung ..
         col_name = f'{column_prefix}/{anatomy_name}'
         assert col_name in data_df.columns, f'Column {col_name} not found in data_df. Available columns: {data_df.columns}'
         # len = n_samples, each element is a list of sentences for the anatomy a (in string format)
@@ -567,7 +801,7 @@ def _parse_sentences(sentence_list: str) -> List[str]:
     return sentence_list
 
 # -----------> Class Labels <----------- #
-def load_class_labels(data_df, config: DatasetConfig, column_prefix) -> np.ndarray:
+def load_class_labels(data_df, config: DatasetConfig, column_prefix) -> np.ndarray: #anatcls
     assert config.class_names is not None and len(config.class_names) > 0
     # one element per class, each element is a binary vector of size N
     all_class_labels: List[np.ndarray] = []
@@ -576,18 +810,20 @@ def load_class_labels(data_df, config: DatasetConfig, column_prefix) -> np.ndarr
         binary_observation = _convert_labels(
             data_df[f'{column_prefix}/{cls_name}'], uncertain_label=1 if config.uncertain_pos else 0)
         binary_observation = np.array(binary_observation, dtype=np.int64)  # (N)
-        all_class_labels.append(binary_observation)
+        all_class_labels.append(binary_observation) #01 labels，uncertain可能是0 or1
     return np.stack(all_class_labels, axis=1)  # (N x C)
 
 def load_anatomy_class_labels(data_df, config: DatasetConfig, column_prefix) -> np.ndarray:
+    # ipdb.set_trace() 
     assert config.class_names is not None and len(config.class_names) > 0
     assert config.anatomy_names is not None and len(config.anatomy_names) > 0
     # (N x A x C)
-    anatomy_class_labels = np.zeros((len(data_df), len(config.anatomy_names), len(config.class_names)), dtype=np.int64)
+    anatomy_class_labels = np.zeros((len(data_df), len(config.anatomy_names), len(config.class_names)), dtype=np.int64) #a:right lung; c:pat
     for c, cls_name in enumerate(config.class_names):
         for a, anatomy_name in enumerate(config.anatomy_names):
             col_name = f'{column_prefix}/{cls_name}/{anatomy_name}'
-            if col_name not in data_df.columns:
+            if col_name not in data_df.columns: #RC:CIG
+                # ipdb.set_trace() #是否存在不在columns 确实有些不在
                 #log.warning(f'Anatomy label not found: {cls_name}/{anatomy_name}.'
                 #             'Note thats this is expected if this combination of class and region is not present in the dataset.')
                 continue
@@ -595,7 +831,8 @@ def load_anatomy_class_labels(data_df, config: DatasetConfig, column_prefix) -> 
             binary_observation = _convert_labels(data_df[col_name], uncertain_label=1 if config.uncertain_pos else 0)
             anatomy_class_labels[:, a, c] = np.array(binary_observation, dtype=np.int64)
         if not (anatomy_class_labels[:, :, c] > 0).any():
-            log.warning(f'No anatomy labels found for class {cls_name}')
+            log.warning(f'No anatomy labels found for class {cls_name}') #cig/af/rib fracture //cig/af/rib fracture
+    # ipdb.set_trace() #anatomy_class_labels是否全是0: 不
     return anatomy_class_labels
 
 def _convert_labels(labels: pd.Series, uncertain_label=1, blank_label=0):
@@ -645,18 +882,19 @@ def load_anatomy_bboxes(data_df, config: DatasetConfig, crops, rescales, column_
     return all_bboxes, all_bbox_present_masks
 
 def load_anatomy_multiboxes(anatomy_bboxes, anatomy_present_masks, config: DatasetConfig) -> Tuple[np.ndarray, np.ndarray]:
+    #相当于把1-10 变成了a-12 b123
     if config.multi_anatomy_names is None or len(config.multi_anatomy_names) == 0:
         return None, None
     assert len(config.anatomy_multibox_mapping) > 0
     anat_name_to_index = {anat_name: i for i, anat_name in enumerate(config.anatomy_names)}
-    N = len(anatomy_bboxes)
+    N = len(anatomy_bboxes) #dataset
     A_multibox = len(config.multi_anatomy_names)
     M = max(len(mapped_anatomy_names) for mapped_anatomy_names in config.anatomy_multibox_mapping.values())
 
     anatomy_multiboxes = np.zeros((N, A_multibox, M, 4), dtype=np.float32)
     anatomy_multibox_masks = np.zeros((N, A_multibox, M), dtype=np.bool8)
-    for a, anat_name in enumerate(config.multi_anatomy_names):
-        mapped_anatomy_names = config.anatomy_multibox_mapping[anat_name]
+    for a, anat_name in enumerate(config.multi_anatomy_names): #['lungs', 'upper lung zones'(rup leftup), 'middle lung zones', 'lower lung zones', 'apical zones']
+        mapped_anatomy_names = config.anatomy_multibox_mapping[anat_name] #['right lung', 'left lung']
         for m, mapped_anat_name in enumerate(mapped_anatomy_names):
             mapped_anat_index = anat_name_to_index[mapped_anat_name]
             anatomy_multiboxes[:, a, m] = anatomy_bboxes[:, mapped_anat_index]
@@ -822,27 +1060,39 @@ def parse_bbox_constraint_list(bbox_list: str) -> List[List[np.ndarray]]:
     assert all(bbox.ndim == 2 and bbox.shape[1] == 4 for bbox in bbox_list), f'Expected 2D arrays of shape (M_i, 4), got {[bbox.shape for bbox in bbox_list]}'
     return bbox_list
 
-def convert_bbox_list_to_padded_tensor(bboxes: List[torch.Tensor], C: int, has_class_bboxes: Optional[torch.Tensor] = None):
+
+
+def convert_bbox_list_to_padded_tensor(x,bboxes: List[torch.Tensor], C: int, has_class_bboxes: Optional[torch.Tensor] = None): #in collatefn
+    '''bboxes: 针对种类'''
+    # print(f'{x}, has_class_bboxes:{has_class_bboxes} bboxes: {bboxes} c: {C}')
+
     if has_class_bboxes is None:
         class_ids = torch.arange(C, dtype=torch.long, device=bboxes[0].device)
     else:
-        class_ids = torch.nonzero(has_class_bboxes.any(0), as_tuple=False).squeeze(-1)
+        class_ids = torch.nonzero(has_class_bboxes.any(0), as_tuple=False).squeeze(-1) #筛掉0 留下True的索引
 
     if len(class_ids) == 0 or all(len(b) == 0 for b in bboxes):
+        # print(len(class_ids) == 0, all(len(b) == 0 for b in bboxes))
         N = len(bboxes)
-        return class_ids, torch.zeros((N, C, 0, 4), dtype=torch.float32, device=class_ids.device), torch.zeros((N, C, 0,), dtype=torch.bool, device=class_ids.device)
+        # 检查c是否等于75，如果不是，输出警告和c的值
+        if C != 75:
+            print(f"警告：c的值不等于75，当前c值为{c}")
+        return class_ids, torch.zeros((N, 75, 0, 4), dtype=torch.float32, device=class_ids.device), torch.zeros((N, 75, 0,), dtype=torch.bool, device=class_ids.device)
+     # mimic 是75
 
     boxes = []
     box_masks = []
+    # for c in class_ids:
     for c in class_ids:
         boxes_c = []
         for i, b in enumerate(bboxes):
             # (M_ic, 4)
-            b_c = b[b[:, -1] == c]
-            boxes_c.append(b_c)
-        M_c = max(len(b) for b in boxes_c)
+            b_c = b[b[:, -1] == c] 
+            boxes_c.append(b_c) #  #of bboxes: N *  (M_ic, 4)
+        M_c = max(len(b) for b in boxes_c) 
         # (N, M_c)
         box_mask_c = torch.stack([torch.arange(M_c) < len(b) for b in boxes_c], dim=0)
+        # C x (N, M_c)
         box_masks.append(box_mask_c)
         # (N, M_c, 4)
         boxes_c = torch.stack([torch.cat([b, torch.zeros((M_c - len(b), 5), dtype=b.dtype, device=b.device)], dim=0) for b in boxes_c], dim=0)

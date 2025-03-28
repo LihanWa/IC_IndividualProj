@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass, field
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -57,7 +56,7 @@ class ImgTextTrainOutput(BaseModelOutput):
     
     @property
     def N(self):
-        return self.x.shape[0]
+        return len(self.sample_id)
 
 
 @dataclass
@@ -149,7 +148,8 @@ class ChEX(BaseModel):
         self.supervisors = nn.ModuleDict(supervisors)
             
        # ----- Load components from other models -----
-        if not from_checkpoint:  # ignore loading if this model is loaded from a checkpoint
+        # ipdb.set_trace()# 是否经过
+        if not from_checkpoint:  # ignore loading if this model is loaded from a checkpoint; eval 跳过
             for component_name, model_name in self.config.load_components_from.items():
                 if model_name is None:
                     continue
@@ -177,7 +177,9 @@ class ChEX(BaseModel):
                 no_patho_token_supervision=False,
                 no_anat_token_supervision=False,
                 no_sent_token_supervision=False,
-                **kwargs):
+                **kwargs): #samples
+        
+
         
         # ---------- Encode the image features (i.e. patches) and all required prompts ----------
         encoded_image: ImageEncoderOutput = self.img_encoder(x, epoch=epoch)
@@ -187,15 +189,74 @@ class ChEX(BaseModel):
             assert 'sentences' in kwargs, 'Sentences must be provided in the dataset if sentence tokens are required'
             sentences = kwargs['sentences']
             if self.config.drop_sentence_prob > 0.0 and self.training:
+                tmp=sentences.copy()
                 sentences = [[s for s in sent if np.random.rand() > self.config.drop_sentence_prob] if sent is not None else sent for sent in sentences]
-            encoded_sentences: TextEncoderOutput = self.encode_sentences(sentences, device=encoded_image.device, epoch=epoch)
+                # 检查每个句子列表，如果drop后长度为0，则保留原始句子列表
+                sentences = [sent_list if sent_list is None or len(sent_list) > 0 else tmp[i] for i, sent_list in enumerate(sentences)]
+            # 检查sentences是否为空列表
+            if not sentences or all(sent is None or len(sent) == 0 for sent in sentences):
+                print("警告：sentences是空列表或只包含空元素")
+                print("原始sentences内容:", kwargs['sentences'])
+                # ipdb.set_trace()
+                encoded_sentences = None
+            else:
+                encoded_sentences: TextEncoderOutput = self.encode_sentences(sentences, device=encoded_image.device, epoch=epoch)
         else:
             encoded_sentences = None
+        # if 'validate' in kwargs and kwargs['validate'] and list(kwargs['task'].dataset.values())[0].name.startswith('mimic_cxr-'):
+        #     if encoded_sentences is not None:
+        #         sentence_features = encoded_sentences.sentence_features
+        #         # (N x S)
+        #         sentence_mask = encoded_sentences.sentence_mask
+        #         sentences=encoded_sentences.sentences
+        #         flattened_sentences=encoded_sentences.flattened_sentences
 
+        #         # has_sentences=kwargs['has_sentences']
+        #         # if has_sentences is None:
+        #         has_sentences = encoded_sentences.sentence_mask.any(dim=-1)
+        #         # if has_sentences is not None:
+        #         encoded_image = encoded_image[has_sentences]
+        #         sentence_features = sentence_features[has_sentences]
+        #         sentence_mask = sentence_mask[has_sentences]
+        #         # 修复：将布尔张量转换为列表索引
+        #         has_sentences_indices = has_sentences.nonzero().squeeze(-1).cpu().tolist()
+        #         sample_id = [sample_id[i] for i in has_sentences_indices]
+        #         sentences=[sentences[i] for i in has_sentences_indices]
+        #         flattened_sentences=[flattened_sentences[i] for i in has_sentences_indices]
+        #         encoded_sentences=TextEncoderOutput(
+        #             sentence_features=sentence_features,
+        #             sentence_mask=sentence_mask,
+        #             sentences=sentences,
+        #             flattened_sentences=flattened_sentences
+        #         )
+        #         # ---------- Prompt detection ----------
+        #         sentence_grounding_output: TokenDetectorOutput = \
+        #                 self.detect_prompts(
+        #                     encoded_image,
+        #                     box_prompts_emb=sentence_features, # (N x S x d)
+        #                     box_prompt_mask=sentence_mask,
+        #                     skip_roi_pool=True) # (N x S)
+
+                
+        #     else: 
+        #         sentence_grounding_output=None
+            
+        #     output = ImgTextTrainOutput( #dict
+        #         sample_id=sample_id,
+        #         x=x, 
+        #         encoded_img=encoded_image,    #img encoder
+        #         encoded_sentences=encoded_sentences,
+        #         grounding= sentence_grounding_output
+        #     )
+
+                
+                
+                
         if self.requires_pathology_tokens:
             assert no_patho_token_supervision or (data_config.class_names is not None and len(data_config.class_names) > 0) , 'Pathology names must be provided in the dataset if pathology tokens are required'
             assert no_patho_token_supervision or len(self.config.pathology_pos_prompts) > 0, 'Pathology prompts must be provided in the model config if pathology tokens are required'
             class_names = data_config.class_names if data_config.class_names is not None else []
+            # ipdb.set_trace() #data_config classnames 多大
             # (C x d), (C x d)
             patho_pos_prompt_emb, patho_neg_prompt_emb = self.encode_pos_neg_prompts(
                 self.config.pathology_neg_prompt_mode, class_names,
@@ -241,10 +302,11 @@ class ChEX(BaseModel):
         # ---------- Supervisors ----------
         loss = 0.
         step_metrics = {}
-        output = ImgTextTrainOutput(
+        # if not ('validate' in kwargs and kwargs['validate'] and list(kwargs['task'].dataset.values())[0].name.startswith('mimic_cxr-')):
+        output = ImgTextTrainOutput( #dict
             sample_id=sample_id,
             x=x, 
-            encoded_img=encoded_image, 
+            encoded_img=encoded_image,    #img encoder
             encoded_sentences=encoded_sentences,
         )
         for supervisor in self.supervisors.values():
@@ -252,6 +314,40 @@ class ChEX(BaseModel):
                 (no_anat_token_supervision and isinstance(supervisor, AnatomyTokenSupervisor)) or \
                 (no_sent_token_supervision and isinstance(supervisor, SentenceTokenSupervisor)):
                 continue
+            
+            # all vindr dataset
+            # 检查SentenceTokenSupervisor的特殊情况
+            # if isinstance(supervisor, SentenceTokenSupervisor) and encoded_sentences is None:
+            #     print(kwargs['dataset_name'][0])
+            #     log.warning("SentenceTokenSupervisor需要encoded_sentences，但当前数据集未提供句子。将跳过此supervisor。")
+            #     continue
+            # if isinstance(supervisor, AnatomyTokenSupervisor) and encoded_sentences is None:
+            #     print(x)
+            #     log.warning("Vindr 没有 anatomy信息。AnatomyTokenSupervisor ")
+            #     continue
+            
+            #all vindr dataset
+            
+            if 'dataset_name' in kwargs: #train
+                all_vindr=True
+                for dataname in kwargs['dataset_name']: 
+                    if dataname!='vindrcxr': all_vindr=False
+                if (isinstance(supervisor, SentenceTokenSupervisor) or isinstance(supervisor, AnatomyTokenSupervisor)) and all_vindr:
+                    # print(x)
+                    ipdb.set_trace()
+                    log.warning("vindr 没有 sentence or anat 信息。将跳过此supervisor。")
+                    continue
+            #all mimic dataset
+            if 'dataset_name' in kwargs:
+                all_mimic=True
+                for dataname in kwargs['dataset_name']: 
+                    if dataname!='mimic_cxr-frontal-report-cig_anatboxes-cig_anatlabels-cig_anatphrases': all_mimic=False
+                if isinstance(supervisor, PathologyTokenSupervisor) and all_mimic:
+                    # print(x)
+                    log.warning("mimic 没有 patho 信息。将跳过此supervisor。")
+                    continue
+
+
             sup_loss, sup_metrics, sup_outputs = supervisor(
                 self,
                 encoded_image=encoded_image, encoded_sentences=encoded_sentences,
@@ -259,11 +355,28 @@ class ChEX(BaseModel):
                 region_pos_prompt_emb=region_pos_prompt_emb, region_neg_prompt_emb=region_neg_prompt_emb,
                 anatomy_token_emb=anatomy_token_emb,
                 epoch=epoch, **kwargs)
+            
+
+                
             loss += sup_loss
             step_metrics.update({key: value.detach() for key, value in sup_metrics.items()})
             for k, v in sup_outputs.items():
                 setattr(output, k, v)
-
+            #     model: 'ChEX',
+            #     encoded_image: ImageEncoderOutput, 
+            #     patho_pos_prompt_emb: Optional[torch.FloatTensor] = None,
+            #     patho_neg_prompt_emb: Optional[torch.FloatTensor] = None,
+            #     has_class_bboxes: Optional[torch.BoolTensor] = None,
+            #     target_cls_boxes_padded: Optional[torch.FloatTensor] = None,
+            #     target_cls_boxes_mask: Optional[torch.BoolTensor] = None,
+            #     has_class_labels: Optional[torch.BoolTensor] = None,
+            #     target_cls_labels: Optional[torch.FloatTensor] = None,
+            #     **kwargs
+        
+        # 确保loss是tensor类型
+        print(f'The loss type is {type(loss)}')
+        # if isinstance(loss, float):
+        #     loss = torch.tensor(loss, device=encoded_image.device, requires_grad=True)
         output.loss = loss
         output.step_metrics = step_metrics
 
@@ -352,18 +465,20 @@ class ChEX(BaseModel):
         :param feature_mask: (N x S) or None
         :return: List[List[str]] of length N with lists of lengths S_i <= S or List[str] of length N
         """
+        # ipdb.set_trace() #查看N多少，prefix是谁
         assert features.ndim in (2, 3)
         N = features.shape[0]
         sent_per_sample = features.shape[1] if features.ndim == 3 else 1
         #self.config.max_generated_sentences = 32
-        N_batch = self.config.max_generated_sentences // sent_per_sample if self.config.max_generated_sentences is not None else N
-        N_batch = max(N_batch, 1)
-        batched_features: List[torch.Tensor] = features.split(N_batch, dim=0)
+        N_batch = self.config.max_generated_sentences // sent_per_sample if self.config.max_generated_sentences is not None else N # 32//3=10
+        N_batch = max(N_batch, 1) # 10
+        batched_features: List[torch.Tensor] = features.split(N_batch, dim=0) # features 太少 4个 （[4, 3, 512]，）
         batched_feature_mask: List[torch.Tensor] = feature_mask.split(N_batch, dim=0) if feature_mask is not None else [None] * len(batched_features)
         all_generated_sentences = []
-
-        for features_batch, feature_mask_batch in zip(batched_features, batched_feature_mask):
+        # ipdb.set_trace() #S 是什么，prefix怎么形成的？
+        for features_batch, feature_mask_batch in zip(batched_features, batched_feature_mask): #mask 是因为有的Q数量不到M=3
             flattened_features = features_batch[feature_mask_batch] if feature_mask_batch is not None else features_batch.view(-1, features_batch.shape[-1])
+            #[4, 3, 512]  变成 [9, 512] 是因为有的mask是False， 12留9
             if len(flattened_features) == 0:
                 generated_sentences = []
             else:
@@ -459,7 +574,7 @@ class ChEX(BaseModel):
             prompts = [[p[i]] for p, i in zip(prompts, synonym_indices)]
 
         if region_templates is None:
-            flattened_prompts, prompt_mask = flatten_prompts(prompts, device=None)
+            flattened_prompts, prompt_mask = flatten_prompts(prompts, device=None) #List[str]
         else:
             # outer list: classes, inner list: regions
             region_templates: List[List[str]] = [region_templates[name]
@@ -482,7 +597,7 @@ class ChEX(BaseModel):
         return prompt_embeddings, prompt_mask.any(dim=-1)
 
 
-    def detect_prompts(self, 
+    def detect_prompts(self,  # img->post decoder
         x: Union[FloatTensor, ImageEncoderOutput], 
         box_prompts_emb: FloatTensor, box_prompt_mask: Optional[FloatTensor] = None, 
         clip_boxes: bool = False, skip_roi_pool: Optional[bool] = None, use_post_decoder: bool =True) -> TokenDetectorOutput:
@@ -588,6 +703,7 @@ class TrainEvaluator(Evaluator):
     def __init__(self, task: TrainEvalConfig, model: ChEX, **kwargs):
         super().__init__(task, TrainEvalConfig, **kwargs)
         self.model = model
+        self.task=task
         self._register_metric(TrainingMetrics(eval_generation=model.has_txt_decoder))
         self.no_patho_token_supervision = self.config.no_patho_token_supervision
         self.no_anat_token_supervision = self.config.no_anat_token_supervision
@@ -597,7 +713,9 @@ class TrainEvaluator(Evaluator):
         output: ImgTextTrainOutput = self.model(**kwargs, generate=self.model.has_txt_decoder, 
                                                 no_patho_token_supervision=self.no_patho_token_supervision,
                                                 no_anat_token_supervision=self.no_anat_token_supervision,
-                                                no_sent_token_supervision=self.no_sent_token_supervision)
+                                                no_sent_token_supervision=self.no_sent_token_supervision,
+                                                validate=True,
+                                                task=self.task)
         self._update_metric(model_output=output)
         return output
  

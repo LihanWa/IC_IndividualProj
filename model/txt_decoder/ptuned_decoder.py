@@ -13,7 +13,7 @@ import ipdb
 import logging
 @dataclass
 class PTunedDecoderConfig(BaseModelConfig):
-    language_model_url: str = "healx/gpt-2-pubmed-medium"
+    language_model_url: str = "healx/gpt-2-pubmed-medium" #24层 Transformer
     frozen_language_model: bool = False
 
     prefix_length_factor: int = 5
@@ -33,7 +33,7 @@ class PTunedDecoderModel(BaseModel):
     def __init__(self, config: PTunedDecoderConfig, main_config: MainModelConfig):
         super().__init__(config)
         print("language_model_url\n :",self.config.language_model_url)
-        local_model_path = "/vol/bitbucket/lw1824/chex/chex/cache/hub/models--healx--gpt-2-pubmed-medium/"
+        local_model_path = "/rds/general/user/lw1824/home/chex/chex/cache/hub/models--healx--gpt-2-pubmed-medium/"
 
 # 下载模型和分词器
        
@@ -93,14 +93,15 @@ class PTunedDecoderModel(BaseModel):
         """
         :param prefix_features: (N x d) or (N x L x d) for multi region
         """
+        # ipdb.set_trace() #prefix_features 怎么形成
         if prefix_features.ndim == 2:
             # (N x d) -> (N x 1 x d)
             prefix_features = prefix_features.unsqueeze(1)
         # (N x L x (factor_L x n_layers * 2 * n_heads * d_head))
-        prefix_features = self.prefix_proj(prefix_features)
+        prefix_features = self.prefix_proj(prefix_features)   # [9, 1, 245760]
         if self.config.shared_projection:
             prefix_features = einops.repeat(
-                prefix_features, "n l (fl np d) -> n l (fl nl np d)", 
+                prefix_features, "n l (fl np d) -> n l (fl nl np d)",  # l=1
                 nl=self.n_layers, np=2, d=self.d_lm)
         N, L, _ = prefix_features.shape
 
@@ -163,11 +164,12 @@ class PTunedDecoderModel(BaseModel):
 
     @torch.inference_mode()
     def generate(self, prefix_features, **kwargs):
+        #post decoder 的输出
         N = prefix_features.shape[0]
         device = prefix_features.device
-        prefix_features = self.project_prefix_features(prefix_features)
+        prefix_features = self.project_prefix_features(prefix_features) 
         # ipdb.set_trace()
-        self.language_model.prepare_inputs_for_generation = self.prepare_inputs_for_generation
+        self.language_model.prepare_inputs_for_generation = self.prepare_inputs_for_generation #自定义
         #prepare_inputs_for_generation?
         default_padding_side = self.tokenizer.padding_side
         #self.tokenizer.padding_side = 'left'
@@ -179,20 +181,21 @@ class PTunedDecoderModel(BaseModel):
         outputs = self.language_model.generate(inputs=input_ids, prefix_key_values=prefix_features, pad_token_id=self.tokenizer.pad_token_id, **generation_kwargs) #{'max_length': 128, 'do_sample': False, 'top_p': 0.92, 'top_k': 0, 'num_beams': 1, 'num_beam_groups': 1, 'use_cache': True}
         # ipdb.set_trace()
         sentences = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        self.language_model.prepare_inputs_for_generation = self.base_model_prepare_inputs_for_generation
+        self.language_model.prepare_inputs_for_generation = self.base_model_prepare_inputs_for_generation #恢复
         self.tokenizer.padding_side = default_padding_side
 
         return sentences
 
     def prepare_inputs_for_generation(self, *args, prefix_key_values, **kwargs):
+        # ipdb.set_trace()
         model_kwargs = self.base_model_prepare_inputs_for_generation(*args, **kwargs)
         input_ids = model_kwargs["input_ids"]
-        attention_mask = model_kwargs["attention_mask"]
-        position_ids = model_kwargs["position_ids"]
-        past_key_values = model_kwargs["past_key_values"]
+        attention_mask = model_kwargs["attention_mask"] # ones 9,1
+        position_ids = model_kwargs["position_ids"] #zeros 9,1
+        past_key_values = model_kwargs["past_key_values"] #None
 
         N, n_head, L_prefix, d = prefix_key_values[0][0].shape
-        N_input = input_ids.shape[0]
+        N_input = input_ids.shape[0]# 9
         if N_input != N:
             assert N_input % N == 0, f"N_input does not match, {N_input} is not a multiply of {N} {(N, n_head, L_prefix, d)}"
             # repeat prefix_key_values for each input

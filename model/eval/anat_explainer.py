@@ -17,29 +17,18 @@ import ipdb
 @dataclass
 class AnatomyExplainerOutput:
     # (N x A)
-    # generated_sentences: Optional[List[List[str]]] = None
+    generated_sentences: Optional[List[List[str]]] = None
     # (N x A)
-    # target_sentences: Optional[List[List[List[str]]]] = None
+    target_sentences: Optional[List[List[List[str]]]] = None
     target_anat_present_masks: Optional[BoolTensor] = None
 
     # (N x A x C)
-    # region_cls_probs:Optional[Tensor] = None
+    region_cls_probs:Optional[Tensor] = None
     # (N x A x C)
-    # region_cls_preds: Optional[Tensor] = None
+    region_cls_preds: Optional[Tensor] = None
     # (N x A x C)
     target_anat_cls_labels: Optional[Tensor] = None
-class BoxExplainerOutput:
-    # (N x M_i)
-    generated_sentences: Optional[List[List[str]]] = None
-    # (N x M_i x C)
-    region_cls_probs: Optional[List[Tensor]] = None
-    # (N x M_i)
-    region_cls_preds: Optional[List[Tensor]] = None   
 
-    # (N x M_i)
-    target_sentences: Optional[List[List[List[str]]]] = None
-    # (N x M_i x 4/5)
-    target_cls_boxes: Optional[List[torch.FloatTensor]] = None
 
 
 @dataclass

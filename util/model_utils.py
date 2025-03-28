@@ -170,7 +170,7 @@ def instantiate_model(
     model_module: Union[None, types.ModuleType, str] = None,
     **kwargs) -> BaseModel: #config_dict, config_override=config_override, from_checkpoint=True
     # **kwargs: 传入前的关键字参数： 。。=。。变成字典kwargs
-    config = OmegaConf.create(config) #已经有了project_dir
+    config = OmegaConf.create(config) #union 转dict
     assert 'model_class' in config.keys() and 'model_module' in config.keys(), f'model_class or model_module not in config. Keys: {config.keys()}'
 
     if model_module is None:
@@ -193,7 +193,7 @@ def instantiate_model(
     model = model_class(config, **kwargs) #runtime 长，在load模型 Chex ；from_checkpoint=True
     assert isinstance(model, model_class)
 
-    return model
+    return model #完整的模型
 
 
 def load_model_by_name(model_name: str, model_component: Optional[str] = None, step: Optional[int] = -1, 
@@ -371,6 +371,18 @@ def prepare_config(config, config_cls, log):
     if len(diff) > 0:
         log.info(f'Defaults have been added to the config: {diff}')
     return new_config
+#用法1
+# cfg = {"lr": 5e-4}
+# prepared = prepare_config(cfg, ModelConfig, logger)
+# print(prepared)
+# # 输出：
+# # {'lr': 0.0005, 'batch_size': 32, 'dropout': 0.1}
+#用法2
+# inst = ModelConfig(lr=2e-3)
+# prepared = prepare_config(inst, ModelConfig, logger)
+# # 直接转换为 DictConfig，无额外 merge
+
+
 
 def get_activation(act: Any, **kwargs):
     if act is None:

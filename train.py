@@ -38,10 +38,17 @@ def train(config: ExperimentConfig, model: BaseModel, model_dir: str, full_model
     # Load the datasets for training and validation
     train_dl = build_train_dataloader(config)
     train_data_conf = train_dl.dataset.dataset_info
-    val_dls: Dict[str, Any] = {
-        val_name: build_val_dataloader(config, val_task)
-        for val_name, val_task in config.val_tasks.items()
-    }
+    val_dls={}
+    
+    for i, (val_name, val_task) in enumerate(config.val_tasks.items()):
+        val_dls[val_name] = build_val_dataloader(config, val_task)
+        # if i==0:
+        #     break
+    # val_dls: Dict[str, Any] = {
+    #     val_name: build_val_dataloader(config, val_task)
+    #     for val_name, val_task in config.val_tasks.items()
+    # }
+
     steps_per_epoch = len(train_dl)
     log.info(f'Note: {steps_per_epoch} steps per epoch')
     assert config.max_steps is None or config.max_epochs is None
@@ -54,6 +61,7 @@ def train(config: ExperimentConfig, model: BaseModel, model_dir: str, full_model
     # Prepare optimizer, scheduler, and scaler
     optimizer = build_optimizer(model, config)
     lr_scheduler = build_scheduler(optimizer, config)
+    # ipdb.set_trace()
     scaler = GradScaler()
 
     step = 0
@@ -78,7 +86,7 @@ def train(config: ExperimentConfig, model: BaseModel, model_dir: str, full_model
 
             # Training step
             output: BaseModelOutput = train_step(model, samples, optimizer, lr_scheduler, scaler, epoch, step, config, train_data_conf)
-            step_metrics_meter.add(dict(output.step_metrics, loss=output.loss.detach()))
+            step_metrics_meter.add(dict(output.step_metrics, loss=output.loss.detach())) #记录平均各个subloss以及总loss
 
             if torch.isnan(output.loss):
                 log.error(f'Loss was nan: {output.step_metrics}')
@@ -127,6 +135,7 @@ def train(config: ExperimentConfig, model: BaseModel, model_dir: str, full_model
                         prefix=f'val/{val_name}',
                     )
                     results.update(val_results)
+                ipdb.set_trace()
                 if config.metric is None:
                     results['val_metric'] = 0.0
                 elif ',' in config.metric:
@@ -207,6 +216,9 @@ def train_step(model: BaseModel, samples, optimizer, lr_scheduler, scaler, epoch
     samples = to_device(samples, config.device)
     with torch.device(config.device):
         with autocast(device_type=config.device, enabled=config.amp):
+            # ipdb.set_trace()
+            #chex forward
+            # print(samples['has_class_bboxes'])
             output: BaseModelOutput = model.train_step(**samples, step=step, epoch=epoch, data_config=train_data_conf)
             loss = output.loss
             assert loss is not None
@@ -249,7 +261,7 @@ def validate(
 
     model.eval() #'ChEX' 
     
-    # ipdb.set_trace()
+    # build evaluator
 
     evaluator: Evaluator = model.build_evaluator(val_task, results_path=results_path, **kwargs) 
     #RE mscxr <model.eval.box_explainer.BoxExplainerEvaluator >
@@ -268,78 +280,79 @@ def validate(
         with torch.inference_mode():
             with torch.device(config.device):
                 with autocast(device_type=config.device, enabled=False):
+
                     output: BaseModelOutput = evaluator.eval_step(**samples, step=step, data_config=val_data_conf)
 
         # Plotting
 
-        # 创建保存目录
-        output_dir = "annotated2_images"
-        os.makedirs(output_dir, exist_ok=True)
+        # # 创建保存目录
+        # output_dir = "annotated2_images"
+        # os.makedirs(output_dir, exist_ok=True)
 
-        # 图像张量转换为 PIL 图像的函数
-        def tensor_to_pil_image(tensor):
-            if tensor.dim() == 3:  # 如果是 [C, H, W]
-                tensor = tensor.permute(1, 2, 0)
-            tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())  # 归一化到 [0, 1]
-            tensor = (tensor * 255).byte()  # 转为 uint8
-            return Image.fromarray(tensor.cpu().numpy())
+        # # 图像张量转换为 PIL 图像的函数
+        # def tensor_to_pil_image(tensor):
+        #     if tensor.dim() == 3:  # 如果是 [C, H, W]
+        #         tensor = tensor.permute(1, 2, 0)
+        #     tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())  # 归一化到 [0, 1]
+        #     tensor = (tensor * 255).byte()  # 转为 uint8
+        #     return Image.fromarray(tensor.cpu().numpy())
 
-        # 绘制目标框和简化句子的函数
-        def draw_boxes(image, boxes, sentences):
-            # 确保图片是 RGB 模式，以便显示彩色字体
-            if image.mode != "RGB":
-                image = image.convert("RGB")
+        # # 绘制目标框和简化句子的函数
+        # def draw_boxes(image, boxes, sentences):
+        #     # 确保图片是 RGB 模式，以便显示彩色字体
+        #     if image.mode != "RGB":
+        #         image = image.convert("RGB")
             
-            draw = ImageDraw.Draw(image)
-            font = ImageFont.load_default()
-            for i, (box, sentence) in enumerate(zip(boxes, sentences)):
-                # 获取坐标并转换为像素
-                x, y, w, h, label = box
-                x_min = int((x - w / 2) * image.width)
-                y_min = int((y - h / 2) * image.height)
-                x_max = int((x + w / 2) * image.width)
-                y_max = int((y + h / 2) * image.height)
+        #     draw = ImageDraw.Draw(image)
+        #     font = ImageFont.load_default()
+        #     for i, (box, sentence) in enumerate(zip(boxes, sentences)):
+        #         # 获取坐标并转换为像素
+        #         x, y, w, h, label = box
+        #         x_min = int((x - w / 2) * image.width)
+        #         y_min = int((y - h / 2) * image.height)
+        #         x_max = int((x + w / 2) * image.width)
+        #         y_max = int((y + h / 2) * image.height)
 
-                # 绘制矩形框
-                draw.rectangle([x_min, y_min, x_max, y_max], outline="red", width=2)
+        #         # 绘制矩形框
+        #         draw.rectangle([x_min, y_min, x_max, y_max], outline="red", width=2)
 
-                # 简化句子（只显示前3个单词）
-                simplified_sentence = " ".join([sentence.split()[0],sentence.split()[-1]])
+        #         # 简化句子（只显示前3个单词）
+        #         simplified_sentence = " ".join([sentence.split()[0],sentence.split()[-1]])
 
-                # 直接绘制文字
-                draw.text((x_min + 2, y_min +1), simplified_sentence, fill="yellow", font=font)  # 黄色文字
+        #         # 直接绘制文字
+        #         draw.text((x_min + 2, y_min +1), simplified_sentence, fill="yellow", font=font)  # 黄色文字
 
-            return image
+        #     return image
 
         # 保存图片和文本信息
-        for i, (id,image_tensor, boxes, gen_sentences, tgt_sentences) in enumerate(zip(samples["sample_id"],output.output_img, output.target_cls_boxes, output.generated_sentences, output.target_sentences)):
-            # ipdb.set_trace()
-            # 转换图像为 PIL 格式
-            image = tensor_to_pil_image(image_tensor)
+        # for i, (id,image_tensor, boxes, gen_sentences, tgt_sentences) in enumerate(zip(samples["sample_id"],output.output_img, output.target_cls_boxes, output.generated_sentences, output.target_sentences)):
+        #     # ipdb.set_trace()
+        #     # 转换图像为 PIL 格式
+        #     image = tensor_to_pil_image(image_tensor)
 
-            # 获取边界框和生成句子
-            boxes = boxes.cpu().numpy()  # 转为 numpy 格式
-            gen_sentences = gen_sentences  # 生成的句子
-            tgt_sentences = tgt_sentences  # 目标句子
+        #     # 获取边界框和生成句子
+        #     boxes = boxes.cpu().numpy()  # 转为 numpy 格式
+        #     gen_sentences = gen_sentences  # 生成的句子
+        #     tgt_sentences = tgt_sentences  # 目标句子
 
-            # 在图像上绘制边界框和句子
-            annotated_image = draw_boxes(image, boxes, gen_sentences)
+        #     # 在图像上绘制边界框和句子
+        #     annotated_image = draw_boxes(image, boxes, gen_sentences)
 
-            # 保存标注后的图像
-            output_path = os.path.join(output_dir, f"sample_{'-'.join(id.split('/'))}.jpg")
-            annotated_image.save(output_path)
-            # print(f"Saved annotated image: {output_path}")
+        #     # 保存标注后的图像
+        #     output_path = os.path.join(output_dir, f"sample_{'-'.join(id.split('/'))}.jpg")
+        #     annotated_image.save(output_path)
+        #     # print(f"Saved annotated image: {output_path}")
 
-            # 保存对应的文本信息（包括 generated_sentences 和 target_sentences）
-            text_path = os.path.join(output_dir, f"sample_{'-'.join(id.split('/'))}.txt")
-            with open(text_path, "w") as f:
-                f.write("Generated Sentences:\n")
-                for sentence in gen_sentences:
-                    f.write(f"- {sentence}\n")
-                f.write("\nTarget Sentences:\n")
-                for sentence in tgt_sentences:
-                    f.write(f"- {sentence}\n")
-            # print(f"Saved text information: {text_path}")
+        #     # 保存对应的文本信息（包括 generated_sentences 和 target_sentences）
+        #     text_path = os.path.join(output_dir, f"sample_{'-'.join(id.split('/'))}.txt")
+        #     with open(text_path, "w") as f:
+        #         f.write("Generated Sentences:\n")
+        #         for sentence in gen_sentences:
+        #             f.write(f"- {sentence}\n")
+        #         f.write("\nTarget Sentences:\n")
+        #         for sentence in tgt_sentences:
+        #             f.write(f"- {sentence}\n")
+        #     # print(f"Saved text information: {text_path}")
 
         try: #没经过
 
@@ -358,11 +371,9 @@ def validate(
 
                 # Log images to wandb
                 # if val_task.plot_wandb:
-                if True:
+                if val_task.plot_wandb:
                     if prefix is not None:
                         wandb_logs = {f'{prefix}/{k}': v for k, v in wandb_logs.items()}
-
-                        # ipdb.set_trace()
                     wandb.log(wandb_logs, step=step)
         except Exception as e:
             log.error(f'Error plotting: {e}')
@@ -393,6 +404,7 @@ def run_training(config: ExperimentConfig):
 
     # Prepare model dir
     override_dirname = HydraConfig.get().job.override_dirname
+    # ipdb.set_trace()
     full_model_name = f'{config.name}/{override_dirname}' if len(override_dirname) > 0 else config.name
     if config.debug:
         log.info('Running in debug mode -> fast run to check for runtime errors')
@@ -406,6 +418,7 @@ def run_training(config: ExperimentConfig):
 
     # Load the model
     if config.continue_from_checkpoint is not None:
+        # ipdb.set_trace() #config 是什么
         model = load_model_from_checkpoint(config.continue_from_checkpoint)
     else:
         model: BaseModel = instantiate_model(config.model)
@@ -440,11 +453,18 @@ def run_training(config: ExperimentConfig):
 
     if config.compile and not config.debug:
         model = torch.compile(model, dynamic=True, mode='max-autotune')
-        #train = torch.compile(train, dynamic=True, mode='max-autotune')
-        #validate = torch.compile(validate, dynamic=True, mode='max-autotune')
+        # train = torch.compile(train, dynamic=True, mode='max-autotune')
+        # validate = torch.compile(validate, dynamic=True, mode='max-autotune')
 
     if config.train:
+
         results = train(config, model=model, model_dir=model_dir, full_model_name=full_model_name)
+        #  (supervisors): ModuleDict(
+    # (sent_tok): SentenceTokenSupervisor(
+    #   (aggregator): GlobalAvgPool()
+    # )
+    # (anat_tok): AnatomyTokenSupervisor()
+    # (patho_tok): PathologyTokenSupervisor()
     else:
         results = {}
         

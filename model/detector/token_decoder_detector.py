@@ -158,7 +158,7 @@ class TokenDetector(BaseModel):
 
         return output
 
-    def decode_queries(self, 
+    def decode_queries(self,  #img->decoder end
         encoded_image: ImageEncoderOutput,
         query_tokens: Tensor,
         query_mask: Optional[BoolTensor] = None) -> Tuple[Tensor, Tensor]:
@@ -208,14 +208,14 @@ class TokenDetector(BaseModel):
 
         # Apply decoder
         # (N x Q' x d)
-        query_features, *_ = self.decoder(
+        query_features, *_ = self.decoder( #encoder + decoder
             token_features=query_tokens, token_mask=query_mask, token_sa_mask=query_sa_mask,
             region_features=flattened_features, region_pos_embeddings=flattened_pos_emb
         )
 
         return query_features, query_mask
 
-    def predict_boxes(self, query_features: Tensor) -> Tuple[Tensor, Union[Tensor, float]]:
+    def predict_boxes(self, query_features: Tensor) -> Tuple[Tensor, Union[Tensor, float]]: #querty->box
         """
         :param query_features: (N x Q x d)
         :return 
@@ -223,7 +223,7 @@ class TokenDetector(BaseModel):
         """
         box_params = self.bbox_predictor(query_features)
         # (N x Q x 4)
-        box_params = box_params.sigmoid()
+        box_params = box_params.sigmoid() #在0-1之间
         # (N x Q x 2)
         pos, size = box_params[..., :2], box_params[..., 2:]
 
@@ -253,20 +253,20 @@ class TokenDetector(BaseModel):
         
         return box_features
     
-    def encode_regions(self, encoded_image, region_boxes, region_mask, region_prompt_emb=None, beta=None):
+    def encode_regions(self, encoded_image, region_boxes, region_mask, region_prompt_emb=None, beta=None): #img->box feature
         if beta is None:
             beta = self.config.soft_roi_beta
 
-        if region_prompt_emb is not None:
+        if region_prompt_emb is not None: #如果给text prompt
             N, Q, d = region_prompt_emb.shape
             # (N x Q x d), (N x Q x H x W)
             query_features, _, _ = self.decode_queries(encoded_image, region_prompt_emb, region_mask)
             query_features = einops.rearrange(query_features, 'n (q r) d -> n q r d', q=Q)
-            query_features = query_features.mean(dim=2)
-            skip_roi_pool = True
-        else:
-            query_features = None
-            skip_roi_pool = False
+            query_features = query_features.mean(dim=2) #取多区域的平均值
+            skip_roi_pool = True                        #会让query features与box features融合形成新的box feature
+        else:                       #如果直接给了准确的boxes
+            query_features = None   #不需要query features，roi 直接提取； 并且不用得到query feature，也就是不经过DETR 
+            skip_roi_pool = False   
         
         box_features = self.apply_roi_pool(encoded_image, region_boxes, query_features=query_features, beta=beta, skip_roi_pool=skip_roi_pool)
 

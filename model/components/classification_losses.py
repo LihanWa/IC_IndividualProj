@@ -15,7 +15,7 @@ def classify_features(features: torch.FloatTensor, pos_prompt_emb: torch.FloatTe
         :return (N x ...)
         """
         # ipdb.set_trace()
-        assert pos_prompt_emb.ndim == neg_prompt_emb.ndim
+        assert pos_prompt_emb.ndim == neg_prompt_emb.ndim #张量的维度数量
         assert features.ndim == pos_prompt_emb.ndim, f'{features.ndim} != {pos_prompt_emb.ndim}'
         features, pos_prompt_emb, neg_prompt_emb = torch.broadcast_tensors(features, pos_prompt_emb, neg_prompt_emb)
 
@@ -30,7 +30,7 @@ def classify_features(features: torch.FloatTensor, pos_prompt_emb: torch.FloatTe
 
        
         N, *dims, d = features.shape
-        n_dims = prod(dims)
+        n_dims = prod(dims) #计算列表中所有数字的乘积
         features = features.view(N, n_dims, d)
         pos_prompt_emb = pos_prompt_emb.view(N, n_dims, d)
         neg_prompt_emb = neg_prompt_emb.view(N, n_dims, d)
