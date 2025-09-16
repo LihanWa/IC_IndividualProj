@@ -1,0 +1,41 @@
+# 1. 默认忽略所有文件和文件夹
+*
+
+# 2. 但是，不要忽略 chex 和 MCPL 的顶层目录
+!/chex/
+!/MCPL/
+!/.gitignore
+# --- 针对 chex/chex 的规则 ---
+
+# 3. 在 chex 目录中，只保留 chex 子目录
+/chex/*
+!/chex/chex/
+
+# 4. 在 chex/chex 目录中，默认忽略所有内容
+/chex/chex/*
+
+# 5. 但保留指定的 src_new 和 conf 目录
+!/chex/chex/src_new/
+!/chex/chex/conf/
+
+# 6. 在 src_new 内部，再次忽略 src-td 目录
+/chex/chex/src_new/src-td/
+
+
+# --- 针对 MCPL/MCPL 的规则 ---
+
+# 7. 在 MCPL 目录中，只保留 MCPL 子目录
+/MCPL/*
+!/MCPL/MCPL/
+
+# 8. 在 MCPL/MCPL 内部，忽略指定的目录
+/MCPL/MCPL/checkpoints/
+/MCPL/MCPL/D:/
+/MCPL/MCPL/logs/
+/MCPL/MCPL/test_results/
+
+
+# --- 其他全局忽略规则 ---
+try_encoder*
+.env
+.bashrc
