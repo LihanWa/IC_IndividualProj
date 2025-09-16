@@ -34,7 +34,7 @@
 /MCPL/MCPL/logs/
 /MCPL/MCPL/test_results/
 
-
+!/MCPL/MCPL/**
 # --- 其他全局忽略规则 ---
 try_encoder*
 .env
