@@ -1,0 +1,7 @@
+Generated Sentences:
+- There are no acute osseous abnormalities.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- multisegmental lower lobe opacities are present, consistent with areas of consolidated and atelectatic lung
+- multisegmental lower lobe opacities are present, consistent with areas of consolidated and atelectatic lung

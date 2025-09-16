@@ -1,0 +1,9 @@
+Generated Sentences:
+- There are no acute osseous abnormalities.
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- opacities, consistent with consolidation, are present in the left lower lung
+- interstitial edema is present in the right lower lung
+- mild cardiomegaly is present

@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- opacity in the basal hemithoraces is likely a combination of pleural fluid and adjacent lung atelectasis
+- opacity in the basal hemithoraces is likely a combination of pleural fluid and adjacent lung atelectasis
+- mild cardiomegaly is present

@@ -1,0 +1,7 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- patchy consolidation in the bilateral lungs, left greater than right
+- patchy consolidation in the bilateral lungs, left greater than right

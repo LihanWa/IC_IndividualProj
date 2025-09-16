@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- bilateral pleural effusions with probable adjacent atelectasis
+- bilateral pleural effusions with probable adjacent atelectasis
+- enlarged cardiac silhouette

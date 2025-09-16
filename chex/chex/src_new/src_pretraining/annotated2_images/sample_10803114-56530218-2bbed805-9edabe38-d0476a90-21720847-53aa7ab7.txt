@@ -1,0 +1,7 @@
+Generated Sentences:
+- There is no pleural effusion or pneumothorax.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- small right apical pneumothorax
+- patchy airspace disease at the right base

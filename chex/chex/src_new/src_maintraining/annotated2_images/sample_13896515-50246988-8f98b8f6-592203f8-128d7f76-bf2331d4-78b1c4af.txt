@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There are no acute osseous abnormalities.
+- There are no acute osseous abnormalities.
+
+Target Sentences:
+- bilateral, diffuse interstitial and alveolar lung edema is present
+- bilateral, diffuse interstitial and alveolar lung edema is present
+- moderate cardiomegaly is present

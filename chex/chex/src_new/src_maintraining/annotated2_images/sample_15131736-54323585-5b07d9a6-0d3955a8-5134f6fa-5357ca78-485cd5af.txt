@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- peribronchial cuffing consistent with pulmonary edema
+- peribronchial cuffing consistent with pulmonary edema
+- cardiac silhouette is enlarged

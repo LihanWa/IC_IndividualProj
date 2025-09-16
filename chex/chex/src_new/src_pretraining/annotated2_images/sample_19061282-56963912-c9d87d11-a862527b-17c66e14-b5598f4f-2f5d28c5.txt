@@ -1,0 +1,9 @@
+Generated Sentences:
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- mild bibasilar opacities likely represent atelectasis
+- mild bibasilar opacities likely represent atelectasis
+- mild cardiomegaly

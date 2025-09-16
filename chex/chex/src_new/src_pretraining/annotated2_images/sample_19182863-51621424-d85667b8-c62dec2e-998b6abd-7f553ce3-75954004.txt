@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- No acute osseous abnormalities.
+- There are no acute osseous abnormalities.
+
+Target Sentences:
+- Worsening mild pulmonary edema
+- Worsening mild pulmonary edema
+- cardiac silhouette enlarged

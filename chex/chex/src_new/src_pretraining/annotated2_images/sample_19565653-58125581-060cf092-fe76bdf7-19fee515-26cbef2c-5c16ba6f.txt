@@ -1,0 +1,5 @@
+Generated Sentences:
+- There are no acute osseous abnormalities.
+
+Target Sentences:
+- elevated right hemidiaphragm and probable right basal atelectasis

@@ -1,0 +1,7 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- diffuse pulmonary opacities likely represent pulmonary edema
+- diffuse pulmonary opacities likely represent pulmonary edema

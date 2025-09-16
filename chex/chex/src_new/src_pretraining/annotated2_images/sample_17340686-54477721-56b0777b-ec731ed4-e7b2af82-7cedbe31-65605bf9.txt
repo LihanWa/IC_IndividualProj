@@ -1,0 +1,9 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- diffuse ground-glass opacity likely represents edema
+- diffuse ground-glass opacity likely represents edema
+- cardiomegaly is noted

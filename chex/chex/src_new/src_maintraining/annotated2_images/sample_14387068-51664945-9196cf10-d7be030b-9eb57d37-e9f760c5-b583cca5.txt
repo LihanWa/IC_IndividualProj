@@ -1,0 +1,5 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- right basilar lucency likely represents pneumothorax which may be loculated

@@ -1,0 +1,11 @@
+Generated Sentences:
+- The cardiomediastinal silhouette is normal.
+- There is no focal consolidation, effusion, or pneumothorax.
+- No acute osseous abnormalities.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- patchy consolidation is seen in the right lung and possibly in the left lung
+- patchy consolidation is seen in the right lung and possibly in the left lung
+- patchy consolidation is seen in the right lung and possibly in the left lung
+- cardiomegaly noted

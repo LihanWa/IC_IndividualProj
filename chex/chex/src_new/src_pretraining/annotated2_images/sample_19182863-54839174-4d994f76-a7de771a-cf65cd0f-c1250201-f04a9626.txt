@@ -1,0 +1,7 @@
+Generated Sentences:
+- There is no focal consolidation, effusion, or pneumothorax.
+- There is no focal consolidation, effusion, or pneumothorax.
+
+Target Sentences:
+- diffuse interstitial thickening likely represents pulmonary edema
+- diffuse interstitial thickening likely represents pulmonary edema

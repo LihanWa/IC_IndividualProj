@@ -1,0 +1,11 @@
+Generated Sentences:
+- There is no pneumothorax or pleural effusion.
+- No acute osseous abnormalities.
+- There is no focal consolidation, effusion, or pneumothorax.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- patchy consolidative opacities are present in the bilateral lungs
+- patchy consolidative opacities are present in the bilateral lungs
+- patchy consolidative opacities are present in the bilateral lungs
+- cardiac silhouette is markedly enlarged

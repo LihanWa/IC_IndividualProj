@@ -1,0 +1,5 @@
+Generated Sentences:
+- No acute osseous abnormalities.
+
+Target Sentences:
+- cardiomegaly

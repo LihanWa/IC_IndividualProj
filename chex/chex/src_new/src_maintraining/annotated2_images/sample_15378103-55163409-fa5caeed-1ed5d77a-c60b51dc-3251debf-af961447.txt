@@ -1,0 +1,7 @@
+Generated Sentences:
+- No acute osseous abnormalities.
+- No acute osseous abnormalities.
+
+Target Sentences:
+- bilateral, diffuse lung consolidation is present, consistent with acute lung injury edema
+- bilateral, diffuse lung consolidation is present, consistent with acute lung injury edema
