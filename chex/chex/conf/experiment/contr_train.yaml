@@ -1,0 +1,74 @@
+# @package _global_
+defaults:
+  - /transform@transform
+  - /model@model: contr_train_img_txt #用model下的contr_train_img_txt
+  - /dataset@train_dataset: 
+    - mimiccxr_reports_cig_multiboxclssent
+  - /task@val_tasks: #@改名
+    - contr_train_metrics
+
+
+name: contr_train_img_txt
+
+use_deepspeed: True
+metric_mode: min #定义给validation的metric
+metric: contr_train_metrics/loss #定义给validation的metric
+
+lr: 5e-5
+min_lr: 2e-7
+warmup_lr: 0
+weight_decay: 1e-4
+batch_size: 130
+val_freq:  300   #60000/168/(50/8)
+print_freq: 150 #60000/168/(70/8)
+max_epochs: 10
+warmup_steps: 300 #//168 *8 *0.1
+# lr: 5e-3
+# min_lr: 1e-7
+# warmup_lr: 0
+# weight_decay: 1e-4
+# batch_size: 64
+# val_freq:   2   #60000/168/(50/8)
+# print_freq: 1 #60000/168/(70/8)
+# max_epochs: 1
+# warmup_steps: 1 #60000//168 *8 *0.1
+
+# lr: 5e-5
+# min_lr: 1e-7
+# warmup_lr: 0
+# weight_decay: 1e-4
+
+# batch_size: 98
+# val_freq: 26
+# print_freq: 20
+# max_epochs: 25
+# warmup_steps: 100
+
+# batch_size: 32
+# val_freq: 2
+# print_freq: 1
+# max_steps: 3
+# warmup_steps: 0
+
+
+# batch_size: 256
+# val_freq: 2000
+# print_freq: 50
+# max_epochs: 50
+# lr: 1e-4
+# min_lr: 1e-7
+# warmup_lr: 0
+# warmup_steps: 50
+# weight_decay: 1e-5
+
+accumulation_steps: 1
+grad_clip_norm: 1.0
+
+train_dataset:
+  mimiccxr_reports_cig_multiboxclssent:
+    oversampling_factor: 1.0
+    auto_balance: false
+
+
+
+

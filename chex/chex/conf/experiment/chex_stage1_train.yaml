@@ -1,0 +1,130 @@
+# @package _global_
+defaults:
+  - /transform@transform
+  - /model@model: chex_stage1_raddino
+  - /dataset@train_dataset: 
+    - mimiccxr_reports_cig_multiboxclssent
+    - vindrcxr_boxes
+  - /task@val_tasks: #@改名
+    - train_metrics
+    - od_nih8
+    - od_mscxr
+    - od_vindrcxr15
+  - /task@eval_tasks: 
+    - od_nih8
+    - od_mscxr
+    - od_vindrcxr15
+    - sg_mscxr
+    - rc_mscxr
+    - rc_cig
+  # - /task@eval_tasks: 
+  #   - sg_mscxr
+
+name: chex_stage1
+
+use_deepspeed: False
+metric_mode: max #定义给validation的metric
+# metric: train_metrics/recon/cosine #定义给validation的metric
+metric: od_nih8/AP/mAP,od_mscxr/AP/mAP,od_vindrcxr/AP/mAP,train_metrics/l_anat/anat_cls #定义给validation的metric
+
+lr: 5e-5
+min_lr: 1e-7
+warmup_lr: 0
+weight_decay: 1e-4
+
+batch_size: 96
+val_freq: 30
+print_freq: 25
+max_epochs: 35
+warmup_steps: 100
+# batch_size: 32
+# val_freq: 2
+# print_freq: 2
+# max_epochs: 1
+# warmup_steps: 1
+
+
+# batch_size: 256
+# val_freq: 2000
+# print_freq: 50
+# max_epochs: 50
+# lr: 1e-4
+# min_lr: 1e-7
+# warmup_lr: 0
+# warmup_steps: 50
+# weight_decay: 1e-5
+
+accumulation_steps: 1
+grad_clip_norm: 1.0
+
+train_dataset:
+  mimiccxr_reports_cig_multiboxclssent:
+    oversampling_factor: 1.0
+    auto_balance: false
+  # vindrcxr_boxes:
+  #   oversampling_factor: 1.0
+  #   auto_balance: true
+
+# model:
+#   patho_tok:
+#     use_patho_detect: true
+#     coeff_patho_detect: 10
+#     subsample_patho_boxes: 10
+
+#     use_patho_cls: True
+#     coeff_patho_cls: 1.3
+#     subsample_patho_cls: 10
+#     patho_cls_temp: 0.2 
+
+#   anat_tok:
+#     region_encoding_mode: token
+
+#     use_anat_det: True
+#     coeff_anat_det: 0.2
+#     subsample_anat_det: 20
+
+#     use_anat_cls: True
+#     coeff_anat_cls: 0.08
+#     anat_cls_subsample_negatives: 10
+#     anat_cls_temp: 0.25
+
+#   sent_tok:
+#     use_global_contr: True
+#     coeff_global_contr: 1.0
+#     global_contr_temp: 0.2
+
+#     use_sent_contr: True
+#     coeff_sent_contr:  0.005
+#     sent_contr_temp: 0.25
+model:
+  patho_tok:
+    use_patho_detect: true
+    coeff_patho_detect: 14.0
+    subsample_patho_boxes: 10
+
+    use_patho_cls: True
+    coeff_patho_cls: 1.0
+    subsample_patho_cls: 10
+    patho_cls_temp: 0.2 
+
+  anat_tok:
+    region_encoding_mode: token
+
+    use_anat_det: True
+    coeff_anat_det: 0.15
+    subsample_anat_det: 20
+
+    use_anat_cls: True
+    coeff_anat_cls: 0.005
+    anat_cls_subsample_negatives: 10
+    anat_cls_temp: 0.25
+
+  sent_tok:
+    use_global_contr: True
+    coeff_global_contr: 1.0
+    global_contr_temp: 0.2
+
+    use_sent_contr: True
+    coeff_sent_contr:  0.005
+    sent_contr_temp: 0.25
+  
